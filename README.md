@@ -1,61 +1,36 @@
-# mythayun-mvp
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## 1. Vue d'Ensemble
+## Getting Started
 
-### 1.1 Description
+First, run the development server:
 
-MythaYun est une plateforme web destinée à améliorer l'expérience des fans de football. Elle combine des fonctionnalités innovantes telles que :
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-- **Scores en direct**
-- **Détails des matchs**
-- **Guides de stade communautaires**
-- **Actualités officielles** issues des fédérations de football
-- **Assistance voyage**
-- **Soirées de visionnage virtuelles**.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### 1.2 Fonctionnalités MVP
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-1. Authentification et gestion des profils utilisateurs.
-2. Sélection et gestion des équipes favorites.
-3. Écran d'accueil avec scores en direct et actualités.
-4. Détails des matchs : compositions, statistiques, chronologie.
-5. Guides de stade : informations pratiques et guides communautaires.
-6. Assistance voyage : transport, hébergement et conseils locaux.
-7. Soirées de visionnage virtuelles : chat textuel et synchronisation avec les matchs.
-8. Intégration d'un flux d'actualités officielles (FIFA, UEFA, etc.).
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## 2. Architecture
+## Learn More
 
-### 2.1 Architecture Globale
+To learn more about Next.js, take a look at the following resources:
 
-L'architecture de MythaYun repose sur une approche monolithique pour le MVP, avec une séparation claire entre le frontend et le backend. Voici les principaux composants :
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-- **Frontend :** Développé avec Next.js (React), utilisant Tailwind CSS pour le style et SWR/React Query pour la gestion des données en temps réel.
-- **Backend :** Next.js API Routes, avec Prisma pour interagir avec une base de données MongoDB Atlas.
-- **Authentification :** NextAuth.js intégré avec Auth0 pour une gestion sécurisée des utilisateurs.
-- **Temps réel :** Pusher pour les mises à jour en direct (scores, chat, notifications).
-- **Services externes :**
-  - [Football-data.org](http://football-data.org/) pour les données sportives.
-  - Cloudinary pour la gestion des médias.
-  - Mapbox GL pour les cartes interactives.
-  - Flux RSS pour les actualités officielles.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-### 2.2 Déploiement
+## Deploy on Vercel
 
-- **Hébergement :** Vercel pour le frontend et backend.
-- **CI/CD :** GitHub Actions pour automatiser les tests et les déploiements.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-### 2.3 Contraintes Techniques
-
-- **Performance :**
-  - LCP < 1.5s sur mobile.
-  - TTI < 3.2s.
-  - Bundle initial < 150KB.
-- **Scalabilité :**
-  - Support de 10K utilisateurs simultanés.
-  - Gestion de 20 matchs en temps réel.
-- **Données :**
-  - Cache optimisé pour limiter les requêtes API (max 1000/jour).
-  - Réactivité < 1s pour les événements critiques.
-
-### 2.4 Structure du Projet
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
