@@ -175,7 +175,6 @@ jobs:
   deploy:
     name: Deploy to ${{ matrix.environment }}
     needs: build
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -186,10 +185,13 @@ jobs:
             branch: staging
           - environment: production
             branch: main
+    # Combined condition
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', matrix.branch)
     environment:
       name: ${{ matrix.environment }}
       url: ${{ steps.deploy.outputs.url }}
-    if: github.ref == format('refs/heads/{0}', matrix.branch)
+    outputs:
+      url: ${{ steps.deploy.outputs.preview-url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
