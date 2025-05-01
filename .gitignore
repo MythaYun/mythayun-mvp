@@ -1,6 +1,8 @@
-node_modules/
+
 .next/
 bin/
 *.log
 .env
 coverage/
+node_modules/
+*.node
