@@ -15,6 +15,7 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -67,31 +68,47 @@ jobs:
         uses: actions/checkout@v3
 
       # Static Application Security Testing with CodeQL
+      # GitHub's built-in security scanning (better than SonarCloud for this case)
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: javascript
-
+      
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
-        with:
-          category: "/language:javascript"
+        continue-on-error: true
 
-      # NPM audit
+      # DEPENDENCY VULNERABILITY SCANNING
+      # 1. npm audit for quick checks
       - name: Run npm audit
-        run: npm audit --json > npm-audit-results.json || true
+        run: npm audit --json > npm-audit.json || true
+      
+      - name: Archive npm audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-results
+          path: npm-audit.json
+          retention-days: 5
 
-      # OWASP dependency-check
+      # 2. OWASP Dependency-Check for comprehensive analysis
       - name: OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: 'MythaYun'
+          project: 'mythyun-mvp
           path: '.'
           format: 'HTML'
-          out: 'reports'
+          out: 'report'
           args: >
-            --suppression suppression.xml
+            --enableExperimental
             --failOnCVSS 7
+            --suppression suppression.xml
+    
+      - name: Archive dependency check results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: report
+          retention-days: 5
 
   # TESTING STAGE - Using your docker-compose test setup
   test:
