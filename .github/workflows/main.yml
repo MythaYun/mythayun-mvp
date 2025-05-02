@@ -203,7 +203,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           # Fix: GitHub Container Registry requires lowercase repository names
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository_owner | lower }}/${{ github.event.repository.name | lower }}:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
