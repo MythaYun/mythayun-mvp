@@ -199,11 +199,14 @@ jobs:
             VERSION=${{ github.ref_name }}
             NEXT_PUBLIC_API_URL=${{ github.ref == 'refs/heads/main' && 'https://api.mythayun.com' || github.ref == 'refs/heads/staging' && 'https://api.staging.mythayun.com' || 'https://api.dev.mythayun.com' }}
 
+      - name: Set lowercase image name
+        run: echo "LOWERCASE_IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
           # Fix: GitHub Container Registry requires lowercase repository names
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
