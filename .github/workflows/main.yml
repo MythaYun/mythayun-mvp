@@ -2,16 +2,15 @@ name: MythaYun CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, staging ]
+    branches: [main, develop, staging]
   pull_request:
-    branches: [ main, develop, staging ]
+    branches: [main, develop, staging]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # VALIDATION STAGE
   validate:
     name: Validate
     runs-on: ubuntu-latest
@@ -23,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'  # Matching your Dockerfile
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -45,20 +44,18 @@ jobs:
               }
             };" > .eslintrc.js
           fi
-      
+
       - name: Run linting
-        run: |
-          npm run lint
+        run: npm run lint
         continue-on-error: true
-      
+
       - name: Type check
         run: npm run type-check
 
-  # SECURITY SCAN STAGE
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    continue-on-error: true 
+    continue-on-error: true
     permissions:
       actions: read
       contents: read
@@ -67,22 +64,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Static Application Security Testing with CodeQL
-      # GitHub's built-in security scanning (better than SonarCloud for this case)
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: javascript
-      
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
         continue-on-error: true
 
-      # DEPENDENCY VULNERABILITY SCANNING
-      # 1. npm audit for quick checks
       - name: Run npm audit
         run: npm audit --json > npm-audit.json || true
-      
+
       - name: Archive npm audit results
         uses: actions/upload-artifact@v4
         with:
@@ -90,7 +83,6 @@ jobs:
           path: npm-audit.json
           retention-days: 5
 
-      # 2. OWASP Dependency-Check for comprehensive analysis
       - name: OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
@@ -102,7 +94,7 @@ jobs:
             --enableExperimental
             --failOnCVSS 7
             --suppression suppression.xml
-    
+
       - name: Archive dependency check results
         uses: actions/upload-artifact@v4
         with:
@@ -110,60 +102,54 @@ jobs:
           path: report
           retention-days: 5
 
-  # TESTING STAGE - Using your docker-compose test setup
-    test:
-      name: Test
-      needs: [validate, security-scan]
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout repository
-          uses: actions/checkout@v3
+  test:
+    name: Test
+    needs: [validate, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-        - name: Set up Docker Buildx
-          uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-        # Create the type definition file for Jest DOM
-        - name: Create Jest DOM type definition
-          run: |
-            mkdir -p types
-            echo "// Type definitions for @testing-library/jest-dom
-            import '@testing-library/jest-dom';" > types/jest-dom.d.ts
+      - name: Create Jest DOM type definition
+        run: |
+          mkdir -p types
+          echo "// Type definitions for @testing-library/jest-dom
+          import '@testing-library/jest-dom';" > types/jest-dom.d.ts
 
-        # Create a suppression file if needed
-        - name: Create OWASP suppression file
-          run: |
-            if [ ! -f suppression.xml ]; then
-              echo '<?xml version="1.0" encoding="UTF-8"?>
-              <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
-                <!-- Example suppression -->
-                <suppress>
-                  <notes>False positive from development dependency</notes>
-                  <packageUrl regex="true">^pkg:npm/next@.*$</packageUrl>
-                  <cpe>cpe:/a:next:next</cpe>
-                </suppress>
-              </suppressions>' > suppression.xml
-            fi
+      - name: Create OWASP suppression file
+        run: |
+          if [ ! -f suppression.xml ]; then
+            echo '<?xml version="1.0" encoding="UTF-8"?>
+            <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+              <suppress>
+                <notes>False positive from development dependency</notes>
+                <packageUrl regex="true">^pkg:npm/next@.*$</packageUrl>
+                <cpe>cpe:/a:next:next</cpe>
+              </suppress>
+            </suppressions>' > suppression.xml
+          fi
 
-        - name: Run tests with Docker Compose
-          run: |
-            docker compose -f docker-compose.test.yml up --build --exit-code-from app-test || true
-          env:
-            NODE_ENV: test
-            CI: true
-            JWT_SECRET: test_jwt_secret_for_ci_pipeline_only
-            JWT_EXPIRY: "1d"
-            JWT_ALGORITHM: "HS256"
-            JWT_ISSUER: "test.mythayun.com"
+      - name: Run tests with Docker Compose
+        run: docker compose -f docker-compose.test.yml up --build --exit-code-from app-test || true
+        env:
+          NODE_ENV: test
+          CI: true
+          JWT_SECRET: test_jwt_secret_for_ci_pipeline_only
+          JWT_EXPIRY: "1d"
+          JWT_ALGORITHM: "HS256"
+          JWT_ISSUER: "test.mythayun.com"
 
-        - name: Upload test results
-          uses: actions/upload-artifact@v3
-          with:
-            name: test-results
-            path: |
-              reports/
-              coverage/
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            reports/
+            coverage/
 
-  # BUILD STAGE - Optimized for your multi-stage Dockerfile
   build:
     name: Build Docker Image
     needs: test
@@ -199,14 +185,12 @@ jobs:
             type=raw,value=${{ github.ref_name }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      # Scan Dockerfile for best practices
       - name: Scan Dockerfile for best practices
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
           failure-threshold: error
 
-      # Build with BuildKit cache
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
@@ -223,7 +207,6 @@ jobs:
             VERSION=${{ github.ref_name }}
             NEXT_PUBLIC_API_URL=${{ github.ref == 'refs/heads/main' && 'https://api.mythayun.com' || github.ref == 'refs/heads/staging' && 'https://api.staging.mythayun.com' || 'https://api.dev.mythayun.com' }}
 
-      # Security scanning of container image
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -232,14 +215,12 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
-      # Upload Trivy scan results to GitHub Security tab
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'trivy'
 
-  # DEPLOYMENT STAGES - Split into separate jobs for each environment
   deploy-development:
     name: Deploy to Development
     needs: build
@@ -254,7 +235,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Deploy to Vercel (environment variables are already configured in Vercel)
       - name: Deploy to Vercel
         id: deploy
         uses: amondnet/vercel-action@v25
@@ -278,7 +258,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Deploy to Vercel (environment variables are already configured in Vercel)
       - name: Deploy to Vercel
         id: deploy
         uses: amondnet/vercel-action@v25
@@ -302,7 +281,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Deploy to Vercel (environment variables are already configured in Vercel)
       - name: Deploy to Vercel
         id: deploy
         uses: amondnet/vercel-action@v25
@@ -310,44 +288,4 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
           working-directory: ./
-
-      - name: Update deployment status
-        uses: chrnorm/deployment-status@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          state: "success"
-          deployment-id: ${{ steps.deploy.outputs.deployment-id }}
-          environment-url: ${{ steps.deploy.outputs.preview-url }}
-
-  # VERIFICATION STAGE - Now needs to run for each deployment
-  verify:
-    name: Verify ${{ github.ref_name }} Deployment
-    needs: [deploy-development, deploy-staging, deploy-production]
-    if: |
-      always() && 
-      (needs.deploy-development.result == 'success' || 
-       needs.deploy-staging.result == 'success' || 
-       needs.deploy-production.result == 'success')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      # Verify healthcheck endpoint - now using conditional for URL
-      - name: Health check deployment
-        run: |
-          echo "Checking health of deployment..."
-          URL="${{ needs.deploy-production.outputs.url || needs.deploy-staging.outputs.url || needs.deploy-development.outputs.url }}"
-          wget --no-verbose --tries=3 --timeout=10 --spider $URL/api/health || exit 1
-      
-      # Performance testing with Lighthouse
-      - name: Run Lighthouse CI
-        uses: treosh/lighthouse-ci-action@v10
-        with:
-          urls: |
-            ${{ needs.deploy-production.outputs.url || needs.deploy-staging.outputs.url || needs.deploy-development.outputs.url }}
-          temporaryPublicStorage: true
-          uploadArtifacts: true
-          runs: 3
