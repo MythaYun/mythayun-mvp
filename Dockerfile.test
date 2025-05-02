@@ -1,0 +1,19 @@
+# Use Node 20 for testing
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies including dev dependencies
+RUN npm ci
+
+# Copy the rest of the application
+COPY . .
+
+# Set environment to test
+ENV NODE_ENV=test
+
+# Command placeholder - will be overridden by docker-compose
+CMD ["npm", "run", "test:ci"]

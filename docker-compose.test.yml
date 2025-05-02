@@ -19,19 +19,18 @@ services:
   app-test:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.test
     volumes:
-      - .:/app
-      - /app/node_modules
       - ./reports:/app/reports
       - ./coverage:/app/coverage
     environment:
       - NODE_ENV=test
+      - CI=true
       - DATABASE_URL=mongodb://mongo-test:27017/mythayun_test
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRY=${JWT_EXPIRY}
-      - JWT_ALGORITHM=${JWT_ALGORITHM}
-      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_SECRET=${JWT_SECRET:-test_secret}
+      - JWT_EXPIRY=${JWT_EXPIRY:-1d}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_ISSUER=${JWT_ISSUER:-test.mythayun.com}
     depends_on:
       mongo-test:
         condition: service_healthy
