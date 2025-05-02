@@ -202,7 +202,8 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # Fix: GitHub Container Registry requires lowercase repository names
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository_owner | lower }}/${{ github.event.repository.name | lower }}:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
@@ -281,3 +282,35 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
+
+
+    # VERIFICATION STAGE - Now needs to run for each deployment
+  verify:
+    name: Verify ${{ github.ref_name }} Deployment
+    needs: [deploy-development, deploy-staging, deploy-production]
+    if: |
+      always() && 
+      (needs.deploy-development.result == 'success' || 
+       needs.deploy-staging.result == 'success' || 
+       needs.deploy-production.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      # Verify healthcheck endpoint - now using conditional for URL
+      - name: Health check deployment
+        run: |
+          echo "Checking health of deployment..."
+          URL="${{ needs.deploy-production.outputs.url || needs.deploy-staging.outputs.url || needs.deploy-development.outputs.url }}"
+          wget --no-verbose --tries=3 --timeout=10 --spider $URL/api/health || exit 1
+      
+      # Performance testing with Lighthouse
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            ${{ needs.deploy-production.outputs.url || needs.deploy-staging.outputs.url || needs.deploy-development.outputs.url }}
+          temporaryPublicStorage: true
+          uploadArtifacts: true
+          runs: 3
