@@ -142,14 +142,6 @@ jobs:
           JWT_ALGORITHM: "HS256"
           JWT_ISSUER: "test.mythayun.com"
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: |
-            reports/
-            coverage/
-
   build:
     name: Build Docker Image
     needs: test
