@@ -1,73 +1,131 @@
+'use client';
+
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-// User interface based on your model
-interface User {
-  _id: string;
-  email: string;
+// Current information
+const CURRENT_TIMESTAMP = "2025-05-03 11:23:26";
+const CURRENT_USER = "Sdiabate1337";
+
+// User type definition
+export interface User {
+  _id?: string;
   name: string;
+  email?: string;
+  role?: 'user' | 'admin';
   avatar?: string;
-  favoriteTeams: string[];
-  createdAt: Date;
-  updatedAt: Date;
+  lastLogin?: Date;
 }
 
+// Auth context type
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  clearError: () => void;
 }
 
-interface AuthProviderProps {
-  children: ReactNode;
-  initialState?: {
-    user: User | null;
-    isAuthenticated: boolean;
-  };
-}
-
-// Create the context with undefined as default
+// Create the context with undefined as default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children, initialState }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(initialState?.user || null);
-  const [isAuthenticated, setIsAuthenticated] = useState(initialState?.isAuthenticated || false);
+// Props for AuthProvider
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
+// Auth Provider component
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Simple login function
   const login = async (email: string, password: string) => {
-    // Mock login implementation
-    const mockUser: User = {
-      _id: 'user123',
-      email: email,
-      name: 'Sdiabate1337',
-      avatar: 'https://i.pravatar.cc/150',
-      favoriteTeams: ['Arsenal', 'Barcelona'],
-      createdAt: new Date('2025-05-01T16:05:33Z'),
-      updatedAt: new Date('2025-05-01T16:05:33Z')
-    };
+    setIsLoading(true);
+    setError(null);
     
-    setUser(mockUser);
-    setIsAuthenticated(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Demo login logic (replace with real API call)
+      if (email === `${CURRENT_USER.toLowerCase()}@mythayun.com` && password === 'password123') {
+        setUser({
+          name: CURRENT_USER,
+          email: email,
+          role: 'user',
+          lastLogin: new Date(CURRENT_TIMESTAMP)
+        });
+        setIsAuthenticated(true);
+      } else {
+        throw new Error('Invalid credentials');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  // Simple register function
+  const register = async (name: string, email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Demo register logic (replace with real API call)
+      setUser({
+        name: name,
+        email: email,
+        role: 'user',
+        lastLogin: new Date(CURRENT_TIMESTAMP)
+      });
+      setIsAuthenticated(true);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Simple logout function
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
   };
 
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  // Clear error message
+  const clearError = () => setError(null);
+
+  // Create context value
+  const value: AuthContextType = {
+    user,
+    isAuthenticated,
+    isLoading,
+    error,
+    login,
+    register,
+    logout,
+    clearError
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
+  
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
+  
   return context;
 }
-
-// Make sure there's a default export or named exports
-export default AuthContext;
