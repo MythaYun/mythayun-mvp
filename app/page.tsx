@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { FiUser, FiLogOut, FiSettings, FiHome, FiX, FiClock, FiMap, FiVideo, FiInfo, FiTrendingUp, FiUsers, FiMenu, FiMoon, FiSun } from "react-icons/fi";
@@ -9,33 +9,58 @@ import LoginForm from "./components/auth/LoginForm";
 import RegisterForm from "./components/auth/RegisterForm";
 
 // Current information
-const CURRENT_TIMESTAMP = "2025-05-03 12:49:55";
-const CURRENT_USER = "Sdiabate1337parfait";
+const CURRENT_TIMESTAMP = "2025-05-03 14:17:46";
+const CURRENT_USER = "Sdiabate1337";
 
-// Custom hook for theme
+// Custom hook for theme with proper client/server handling
 const useTheme = () => {
-  const [theme, setTheme] = useState(() => {
-    // Check if we're on the client side
-    if (typeof window !== 'undefined') {
-      // Get theme from localStorage or use system preference
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) {
-        return savedTheme;
-      }
-      
-      // Check system preference
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
+  // Utiliser une valeur par défaut pour le rendu initial
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  // État qui indique si le JavaScript côté client est chargé
+  const [mounted, setMounted] = useState(false);
+  
+  // Effet qui s'exécute uniquement côté client après le montage du composant
+  useEffect(() => {
+    setMounted(true);
+    
+    // Récupérer le thème depuis localStorage
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || savedTheme === 'light') {
+      setTheme(savedTheme);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
     }
     
-    return 'light';
-  });
-  
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+    // Observer les préférences système
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent): void => {
+      if (!localStorage.getItem('theme')) {
+        setTheme(e.matches ? 'dark' : 'light');
+      }
+    };
     
-    // Apply theme to document
+    // Utiliser la méthode addEventListener avec gestion de compatibilité
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      // Support pour les anciens navigateurs
+      (mediaQuery as any).addListener(handleChange);
+    }
+    
+    return () => {
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', handleChange);
+      } else {
+        // Support pour les anciens navigateurs
+        (mediaQuery as any).removeListener(handleChange);
+      }
+    };
+  }, []);
+  
+  // Effet pour appliquer le thème au document
+  useEffect(() => {
+    if (!mounted) return;
+    
     const root = window.document.documentElement;
     
     if (theme === 'dark') {
@@ -46,13 +71,17 @@ const useTheme = () => {
     
     // Save to localStorage
     localStorage.setItem('theme', theme);
-  }, [theme]);
+  }, [theme, mounted]);
   
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  // Ne pas rendre le contenu dynamique avant le montage 
+  // pour éviter les problèmes d'hydratation
+  const toggleTheme = (): void => {
+    if (mounted) {
+      setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+    }
   };
   
-  return { theme, toggleTheme };
+  return { theme, toggleTheme, mounted };
 };
 
 export default function Home() {
@@ -63,23 +92,40 @@ export default function Home() {
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
+  // Refs pour la gestion des clics
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const menuContentRef = useRef<HTMLDivElement | null>(null);
+  
   // Use theme hook
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === 'dark';
+  const { theme, toggleTheme, mounted } = useTheme();
+  // Ne déterminer isDark que lorsque le composant est monté
+  const isDark = mounted && theme === 'dark';
   
   // Handle login form close
-  const handleLoginClose = () => {
+  const handleLoginClose = (): void => {
     setShowLoginForm(false);
   };
   
   // Handle register form close
-  const handleRegisterClose = () => {
+  const handleRegisterClose = (): void => {
     setShowRegisterForm(false);
   };
   
   // Toggle mobile menu
-  const toggleMobileMenu = () => {
+  const toggleMobileMenu = (e: React.MouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation();
     setMobileMenuOpen(!mobileMenuOpen);
+  };
+  
+  // Handle successful login
+  const handleLoginSuccess = (): void => {
+    setShowLoginForm(false);
+  };
+  
+  // Handle successful registration
+  const handleRegisterSuccess = (): void => {
+    setShowRegisterForm(false);
+    setShowLoginForm(true);
   };
   
   // Handle successful login/register
@@ -92,12 +138,31 @@ export default function Home() {
 
   // Close mobile menu when clicking outside
   useEffect(() => {
-    const handleOutsideClick = () => {
-      if (mobileMenuOpen) setMobileMenuOpen(false);
+    if (!mobileMenuOpen) return;
+    
+    const handleOutsideClick = (event: MouseEvent): void => {
+      if (!menuButtonRef.current || !menuContentRef.current) return;
+      
+      // TypeScript safety check: ensure target is an Element
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      
+      // Check if click was outside menu and button
+      if (
+        !menuButtonRef.current.contains(target) && 
+        !menuContentRef.current.contains(target)
+      ) {
+        setMobileMenuOpen(false);
+      }
     };
     
-    document.addEventListener('click', handleOutsideClick);
+    // Add event listener with delay to prevent immediate closure
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick);
+    }, 100);
+    
     return () => {
+      clearTimeout(timeoutId);
       document.removeEventListener('click', handleOutsideClick);
     };
   }, [mobileMenuOpen]);
@@ -122,35 +187,38 @@ export default function Home() {
               </h1>
             </div>
             
-            {/* Theme Toggle Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleTheme();
-              }}
-              aria-label={isDark ? "Activer le thème clair" : "Activer le thème sombre"}
-              className={`p-2 rounded-full transition-colors
-                ${isDark 
-                  ? 'bg-slate-800 text-yellow-300 hover:bg-slate-700' 
-                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
-            >
-              {isDark ? <FiSun size={20} /> : <FiMoon size={20} />}
-            </button>
-            
-            {/* Mobile menu button */}
-            <div className="md:hidden ml-2">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleMobileMenu();
-                }}
-                className={`p-2 rounded-md transition-colors
-                  ${isDark 
-                    ? 'text-slate-400 hover:text-indigo-400 hover:bg-slate-800' 
-                    : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-100'}`}
-              >
-                <FiMenu size={24} />
-              </button>
+            <div className="flex items-center space-x-2">
+              {/* Theme Toggle Button - Only render when mounted */}
+              {mounted && (
+                <button
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation();
+                    toggleTheme();
+                  }}
+                  aria-label={isDark ? "Activer le thème clair" : "Activer le thème sombre"}
+                  className={`p-2 rounded-full transition-colors
+                    ${isDark 
+                      ? 'bg-slate-800 text-yellow-300 hover:bg-slate-700' 
+                      : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
+                >
+                  {isDark ? <FiSun size={20} /> : <FiMoon size={20} />}
+                </button>
+              )}
+              
+              {/* Mobile menu button */}
+              <div className="md:hidden">
+                <button 
+                  ref={menuButtonRef}
+                  id="mobile-menu-button"
+                  onClick={toggleMobileMenu}
+                  className={`p-2 rounded-md transition-colors
+                    ${isDark 
+                      ? 'text-slate-400 hover:text-indigo-400 hover:bg-slate-800' 
+                      : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-100'}`}
+                >
+                  <FiMenu size={24} />
+                </button>
+              </div>
             </div>
             
             {/* Desktop navigation */}
@@ -211,11 +279,12 @@ export default function Home() {
         {/* Mobile menu */}
         {mobileMenuOpen && (
           <div 
-            className={`md:hidden absolute top-16 inset-x-0 rounded-b-xl border-t shadow-lg p-4 z-50 animate-fade-in-down transition-colors
+            ref={menuContentRef}
+            id="mobile-menu-content"
+            className={`md:hidden absolute top-16 inset-x-0 rounded-b-xl border-t shadow-lg p-4 z-50 transition-colors
               ${isDark 
                 ? 'bg-slate-800 border-slate-700' 
-                : 'bg-white border-slate-100'}`} 
-            onClick={(e) => e.stopPropagation()}
+                : 'bg-white border-slate-100'}`}
           >
             {isLoading ? (
               <div className={`flex items-center justify-center p-4 ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
@@ -275,7 +344,7 @@ export default function Home() {
       {/* Authentication forms - Mobile optimized */}
       {showLoginForm && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          style={{ backgroundColor: isDark ? 'rgba(15, 23, 42, 0.5)' : 'rgba(15, 23, 42, 0.5)' }}
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)' }}
         >
           <div className={`p-5 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border transition-colors
             ${isDark 
@@ -296,14 +365,14 @@ export default function Home() {
                 <FiX size={20} />
               </button>
             </div>
-            <LoginForm />
+            <LoginForm onLoginSuccess={handleLoginSuccess} />
           </div>
         </div>
       )}
 
       {showRegisterForm && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          style={{ backgroundColor: isDark ? 'rgba(15, 23, 42, 0.5)' : 'rgba(15, 23, 42, 0.5)' }}
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)' }}
         >
           <div className={`p-5 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border transition-colors
             ${isDark 
@@ -324,7 +393,7 @@ export default function Home() {
                 <FiX size={20} />
               </button>
             </div>
-            <RegisterForm />
+            <RegisterForm onRegisterSuccess={handleRegisterSuccess} />
           </div>
         </div>
       )}
@@ -446,7 +515,7 @@ export default function Home() {
                 Suivez tous vos matchs préférés en temps réel avec des mises à jour instantanées et des statistiques détaillées.
               </p>
             </div>
-            
+
             {/* Feature 2 */}
             <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
               ${isDark 
@@ -471,7 +540,7 @@ export default function Home() {
                 Accédez à des guides communautaires pour maximiser votre expérience dans les stades du monde entier.
               </p>
             </div>
-            
+
             {/* Feature 3 */}
             <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
               ${isDark 
@@ -496,7 +565,7 @@ export default function Home() {
                 Créez ou rejoignez des soirées de visionnage pour partager les grands moments avec d'autres passionnés.
               </p>
             </div>
-            
+
             {/* Feature 4 */}
             <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
               ${isDark 
@@ -521,7 +590,7 @@ export default function Home() {
                 Restez informé avec les dernières actualités provenant directement des fédérations de football.
               </p>
             </div>
-            
+
             {/* Feature 5 */}
             <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
               ${isDark 
@@ -546,7 +615,7 @@ export default function Home() {
                 Planifiez vos déplacements pour les matchs avec des informations sur l'hébergement et le transport.
               </p>
             </div>
-            
+
             {/* Feature 6 */}
             <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
               ${isDark 

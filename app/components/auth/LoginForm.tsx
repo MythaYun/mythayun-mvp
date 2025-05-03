@@ -4,40 +4,13 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { FiMail, FiLock, FiAlertCircle, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
+import { FaFacebook } from 'react-icons/fa';
+import { useTheme } from './useTheme';
 
 // Current user and timestamp
-const CURRENT_TIMESTAMP = "2025-05-03 13:21:26";
+const CURRENT_TIMESTAMP = "2025-05-03 14:32:35";
 const CURRENT_USER = "Sdiabate1337";
-
-// Custom hook to detect theme from parent document
-const useTheme = () => {
-  const [isDark, setIsDark] = useState(false);
-  
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Initial check
-      setIsDark(document.documentElement.classList.contains('dark'));
-      
-      // Setup observer to detect theme changes
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (
-            mutation.attributeName === 'class' &&
-            mutation.target === document.documentElement
-          ) {
-            setIsDark(document.documentElement.classList.contains('dark'));
-          }
-        });
-      });
-      
-      observer.observe(document.documentElement, { attributes: true });
-      
-      return () => observer.disconnect();
-    }
-  }, []);
-  
-  return isDark;
-};
 
 // Props interface
 interface LoginFormProps {
@@ -50,11 +23,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
-  // Get theme from document
-  const isDark = useTheme();
+  // Get theme from shared hook
+  const { isDark, mounted } = useTheme();
   
   // Get auth context
-  const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
+  const { login, loginWithGoogle, loginWithFacebook, isLoading, error, clearError, isAuthenticated } = useAuth();
   
   // Watch for authentication state changes
   useEffect(() => {
@@ -73,8 +46,37 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
     }
     
     await login(email, password);
-    // No need to check return value - we'll monitor isAuthenticated instead
   };
+
+  // Social login handlers
+  const handleGoogleLogin = async () => {
+    clearError();
+    await loginWithGoogle();
+  };
+
+  const handleFacebookLogin = async () => {
+    clearError();
+    await loginWithFacebook();
+  };
+
+  // Afficher un placeholder pendant le chargement côté client
+  if (!mounted) {
+    // Rendu simple sans classes conditionnelles basées sur le thème
+    return (
+      <div className="w-full max-w-md mx-auto bg-white rounded-lg p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-slate-200 rounded mb-6 mx-auto w-3/4"></div>
+          <div className="space-y-4">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="h-10 bg-slate-200 rounded mt-4"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -92,6 +94,42 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
         )}
+        
+        {/* Social Login Buttons */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border transition-colors
+              ${isDark 
+                ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600' 
+                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+          >
+            <FcGoogle size={20} />
+            <span className="text-sm font-medium">Google</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleFacebookLogin}
+            disabled={isLoading}
+            className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border transition-colors
+              ${isDark 
+                ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600' 
+                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+          >
+            <FaFacebook size={20} className="text-blue-600" />
+            <span className="text-sm font-medium">Facebook</span>
+          </button>
+        </div>
+        
+        {/* Divider */}
+        <div className="flex items-center mb-6">
+          <div className={`flex-grow border-t ${isDark ? 'border-slate-600' : 'border-gray-300'}`}></div>
+          <span className={`px-4 text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Or continue with</span>
+          <div className={`flex-grow border-t ${isDark ? 'border-slate-600' : 'border-gray-300'}`}></div>
+        </div>
         
         <form onSubmit={handleSubmit}>
           {/* Email input */}

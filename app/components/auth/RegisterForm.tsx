@@ -4,40 +4,11 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { FiUser, FiMail, FiLock, FiAlertCircle, FiEye, FiEyeOff, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { useTheme } from './useTheme';
 
 // Current user and timestamp
-const CURRENT_TIMESTAMP = "2025-05-03 13:21:26";
+const CURRENT_TIMESTAMP = "2025-05-03 13:38:16";
 const CURRENT_USER = "Sdiabate1337";
-
-// Custom hook to detect theme from parent document
-const useTheme = () => {
-  const [isDark, setIsDark] = useState(false);
-  
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Initial check
-      setIsDark(document.documentElement.classList.contains('dark'));
-      
-      // Setup observer to detect theme changes
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (
-            mutation.attributeName === 'class' &&
-            mutation.target === document.documentElement
-          ) {
-            setIsDark(document.documentElement.classList.contains('dark'));
-          }
-        });
-      });
-      
-      observer.observe(document.documentElement, { attributes: true });
-      
-      return () => observer.disconnect();
-    }
-  }, []);
-  
-  return isDark;
-};
 
 // Props interface
 interface RegisterFormProps {
@@ -54,8 +25,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   
-  // Get theme from document
-  const isDark = useTheme();
+  // Get theme from shared hook
+  const { isDark, mounted } = useTheme();
   
   // Get auth context
   const { register, isLoading, error, clearError } = useAuth();
@@ -119,6 +90,29 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
       }
     }
   };
+
+  // Afficher un placeholder pendant le chargement côté client
+  if (!mounted) {
+    // Rendu simple sans classes conditionnelles basées sur le thème
+    return (
+      <div className="w-full max-w-md mx-auto bg-white rounded-lg p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-slate-200 rounded mb-6 mx-auto w-3/4"></div>
+          <div className="space-y-4">
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+            <div className="h-10 bg-slate-200 rounded"></div>
+            <div className="h-10 bg-slate-200 rounded mt-4"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto">

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 // Current information
-const CURRENT_TIMESTAMP = "2025-05-03 11:23:26";
+const CURRENT_TIMESTAMP = "2025-05-03 14:32:35";
 const CURRENT_USER = "Sdiabate1337";
 
 // User type definition
@@ -14,6 +14,7 @@ export interface User {
   role?: 'user' | 'admin';
   avatar?: string;
   lastLogin?: Date;
+  provider?: 'email' | 'google' | 'facebook';
 }
 
 // Auth context type
@@ -23,6 +24,8 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  loginWithFacebook: () => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
@@ -58,6 +61,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           name: CURRENT_USER,
           email: email,
           role: 'user',
+          provider: 'email',
           lastLogin: new Date(CURRENT_TIMESTAMP)
         });
         setIsAuthenticated(true);
@@ -66,6 +70,58 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (err: any) {
       setError(err.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Google login function
+  const loginWithGoogle = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Demo Google login (replace with real Google Auth)
+      setUser({
+        name: CURRENT_USER,
+        email: `${CURRENT_USER.toLowerCase()}@gmail.com`,
+        role: 'user',
+        provider: 'google',
+        avatar: 'https://lh3.googleusercontent.com/a/default-user',
+        lastLogin: new Date(CURRENT_TIMESTAMP)
+      });
+      setIsAuthenticated(true);
+    } catch (err: any) {
+      setError(err.message || 'Google login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Facebook login function
+  const loginWithFacebook = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Demo Facebook login (replace with real Facebook Auth)
+      setUser({
+        name: CURRENT_USER,
+        email: `${CURRENT_USER.toLowerCase()}@facebook.com`,
+        role: 'user',
+        provider: 'facebook',
+        avatar: 'https://graph.facebook.com/default-user/picture',
+        lastLogin: new Date(CURRENT_TIMESTAMP)
+      });
+      setIsAuthenticated(true);
+    } catch (err: any) {
+      setError(err.message || 'Facebook login failed');
     } finally {
       setIsLoading(false);
     }
@@ -85,6 +141,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         name: name,
         email: email,
         role: 'user',
+        provider: 'email',
         lastLogin: new Date(CURRENT_TIMESTAMP)
       });
       setIsAuthenticated(true);
@@ -111,6 +168,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     error,
     login,
+    loginWithGoogle,
+    loginWithFacebook,
     register,
     logout,
     clearError
