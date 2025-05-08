@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Modal from '@/components/ui/Modal';
+import Modal from '../../ui/Modal';
 import RegisterForm from '../forms/RegisterForm';
 import { useModal } from '@/lib/contexts/ModalContext';
 
