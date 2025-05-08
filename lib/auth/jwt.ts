@@ -1,102 +1,116 @@
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { IUser } from '../models/User';
 
-// JWT Payload type
+// Informations système actuelles
+const CURRENT_TIMESTAMP = "2025-05-07 12:49:05";
+const CURRENT_USER = "Sdiabate1337";
+
+// Type du payload JWT
 export interface JwtPayload {
   userId: string;
   name: string;
   email: string;
   role: string;
+  tokenType?: string;
   iat?: number;
   exp?: number;
 }
 
-// JWT Configuration
+// Configuration JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'mythayun-jwt-secret-key';
-const JWT_EXPIRY: string = process.env.JWT_EXPIRY || '15m';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d'; // Longer-lived refresh token
+// Définir l'expiration en secondes au lieu de chaînes
+const JWT_EXPIRY_SECONDS = 15 * 60; // 15 minutes
+const JWT_REFRESH_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 jours
 
 /**
- * Generate access token
- * @param user User object to generate token for
- * @returns JWT token string
+ * Générer un token d'accès
  */
 export function generateAccessToken(user: IUser): string {
   const payload: JwtPayload = {
     userId: user._id!.toString(),
     name: user.name,
     email: user.email,
-    role: user.role
+    role: user.role,
+    tokenType: 'access'
   };
   
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY as string });
+  // Utiliser des valeurs numériques pour expiresIn (en secondes)
+  const options: SignOptions = { 
+    expiresIn: JWT_EXPIRY_SECONDS 
+  };
+  
+  return jwt.sign(payload, JWT_SECRET, options);
 }
 
 /**
- * Generate refresh token with longer expiry
- * @param user User object to generate token for
- * @returns JWT refresh token string
+ * Générer un token de rafraîchissement
  */
 export function generateRefreshToken(user: IUser): string {
-  const payload = {
+  const payload: JwtPayload = {
     userId: user._id!.toString(),
+    name: user.name,
+    email: user.email,
+    role: user.role,
     tokenType: 'refresh'
   };
   
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_REFRESH_EXPIRY });
+  const options: SignOptions = { 
+    expiresIn: JWT_REFRESH_EXPIRY_SECONDS 
+  };
+  
+  return jwt.sign(payload, JWT_SECRET, options);
 }
 
 /**
- * Verify JWT token
- * @param token Token to verify
- * @returns Decoded token payload or null if invalid
+ * Vérifier un token JWT
  */
 export function verifyToken(token: string): JwtPayload | null {
   try {
     return jwt.verify(token, JWT_SECRET) as JwtPayload;
   } catch (error) {
-    console.error('JWT verification failed:', error);
+    console.error('Erreur de vérification JWT:', error);
     return null;
   }
 }
 
 /**
- * Set auth cookies in the response
- * @param accessToken Access token to set
- * @param refreshToken Refresh token to set
+ * Définir les cookies d'authentification
  */
-export function setAuthCookies(accessToken: string, refreshToken: string): void {
-  // Set HTTP-only, secure access token cookie
-  cookies().set({
+export async function setAuthCookies(accessToken: string, refreshToken: string): Promise<void> {
+  const cookieStore = await cookies();
+  
+  // Cookie du token d'accès
+  cookieStore.set({
     name: 'accessToken',
     value: accessToken,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 15 * 60, // 15 minutes in seconds
+    maxAge: JWT_EXPIRY_SECONDS,
     path: '/'
   });
   
-  // Set HTTP-only, secure refresh token cookie
-  cookies().set({
+  // Cookie du token de rafraîchissement
+  cookieStore.set({
     name: 'refreshToken',
     value: refreshToken,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
+    maxAge: JWT_REFRESH_EXPIRY_SECONDS,
     path: '/'
   });
 }
 
 /**
- * Clear auth cookies
+ * Effacer les cookies d'authentification
  */
-export function clearAuthCookies(): void {
-  cookies().set({
+export async function clearAuthCookies(): Promise<void> {
+  const cookieStore = await cookies();
+  
+  cookieStore.set({
     name: 'accessToken',
     value: '',
     httpOnly: true,
@@ -106,7 +120,7 @@ export function clearAuthCookies(): void {
     path: '/'
   });
   
-  cookies().set({
+  cookieStore.set({
     name: 'refreshToken',
     value: '',
     httpOnly: true,
@@ -118,17 +132,49 @@ export function clearAuthCookies(): void {
 }
 
 /**
- * Get token from cookies
- * @returns Access token from cookie or undefined
+ * Récupérer le token d'accès depuis les cookies
  */
-export function getAccessTokenFromCookies(): string | undefined {
-  return cookies().get('accessToken')?.value;
+export async function getAccessToken(): Promise<string | undefined> {
+  const cookieStore = await cookies();
+  return cookieStore.get('accessToken')?.value;
 }
 
 /**
- * Get refresh token from cookies
- * @returns Refresh token from cookie or undefined
+ * Récupérer le token de rafraîchissement depuis les cookies
  */
-export function getRefreshTokenFromCookies(): string | undefined {
-  return cookies().get('refreshToken')?.value;
+export async function getRefreshToken(): Promise<string | undefined> {
+  const cookieStore = await cookies();
+  return cookieStore.get('refreshToken')?.value;
 }
+
+/**
+ * Utilitaires pour le middleware
+ */
+export const middlewareUtils = {
+  // Récupérer le token d'accès depuis la requête
+  getAccessTokenFromRequest(request: NextRequest): string | undefined {
+    return request.cookies.get('accessToken')?.value;
+  },
+  
+  // Récupérer le token de rafraîchissement depuis la requête
+  getRefreshTokenFromRequest(request: NextRequest): string | undefined {
+    return request.cookies.get('refreshToken')?.value;
+  }
+};
+
+/**
+ * Exporter tous les utilitaires JWT
+ * CORRECTION: Assurer la cohérence des noms de fonctions
+ */
+export const jwtUtils = {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyToken,
+  setAuthCookies,
+  clearAuthCookies,
+  getAccessToken,           // Corrigé: renommé de getAccessTokenFromCookies
+  getRefreshToken,          // Corrigé: renommé de getRefreshTokenFromCookies
+  middlewareUtils
+};
+
+export default jwtUtils;

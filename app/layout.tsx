@@ -1,24 +1,21 @@
-import './globals.css';
-import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
-
-const inter = Inter({ subsets: ['latin'] });
-
-export const metadata = {
-  title: 'MythaYun - Football Standings',
-  description: 'Your favorite football standings and stats app',
-};
+import { ModalProvider } from '@/lib/contexts/ModalContext';
+import AuthModals from './components/auth/AuthModals';
+import './globals.css';
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="fr" className="dark">
+      <body className="bg-slate-900 text-white">
         <AuthProvider>
-          {children}
+          <ModalProvider>
+            {children}
+            <AuthModals />
+          </ModalProvider>
         </AuthProvider>
       </body>
     </html>

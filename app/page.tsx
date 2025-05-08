@@ -1,115 +1,27 @@
-"use client";
+'use client';
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { FiUser, FiLogOut, FiSettings, FiHome, FiX, FiClock, FiMap, FiVideo, FiInfo, FiTrendingUp, FiUsers, FiMenu, FiMoon, FiSun } from "react-icons/fi";
+import { FiUser, FiLogOut, FiHome, FiClock, FiMap, FiVideo, FiInfo, FiTrendingUp, FiUsers, FiMenu } from "react-icons/fi";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import LoginForm from "./components/auth/LoginForm";
-import RegisterForm from "./components/auth/RegisterForm";
+import { useModal } from "@/lib/contexts/ModalContext";
 
-// Current information
-const CURRENT_TIMESTAMP = "2025-05-03 14:17:46";
+// Informations système actuelles
+const CURRENT_TIMESTAMP = "2025-05-07 17:59:28";
 const CURRENT_USER = "Sdiabate1337";
 
-// Custom hook for theme with proper client/server handling
-const useTheme = () => {
-  // Utiliser une valeur par défaut pour le rendu initial
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  // État qui indique si le JavaScript côté client est chargé
-  const [mounted, setMounted] = useState(false);
-  
-  // Effet qui s'exécute uniquement côté client après le montage du composant
-  useEffect(() => {
-    setMounted(true);
-    
-    // Récupérer le thème depuis localStorage
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || savedTheme === 'light') {
-      setTheme(savedTheme);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-    }
-    
-    // Observer les préférences système
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent): void => {
-      if (!localStorage.getItem('theme')) {
-        setTheme(e.matches ? 'dark' : 'light');
-      }
-    };
-    
-    // Utiliser la méthode addEventListener avec gestion de compatibilité
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', handleChange);
-    } else {
-      // Support pour les anciens navigateurs
-      (mediaQuery as any).addListener(handleChange);
-    }
-    
-    return () => {
-      if (typeof mediaQuery.removeEventListener === 'function') {
-        mediaQuery.removeEventListener('change', handleChange);
-      } else {
-        // Support pour les anciens navigateurs
-        (mediaQuery as any).removeListener(handleChange);
-      }
-    };
-  }, []);
-  
-  // Effet pour appliquer le thème au document
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const root = window.document.documentElement;
-    
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('theme', theme);
-  }, [theme, mounted]);
-  
-  // Ne pas rendre le contenu dynamique avant le montage 
-  // pour éviter les problèmes d'hydratation
-  const toggleTheme = (): void => {
-    if (mounted) {
-      setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-    }
-  };
-  
-  return { theme, toggleTheme, mounted };
-};
-
 export default function Home() {
-  // Use Auth Context
+  // Utiliser le contexte d'authentification
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   
-  const [showLoginForm, setShowLoginForm] = useState(false);
-  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  // Utiliser le contexte des modaux
+  const { openModal } = useModal();
+  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Refs pour la gestion des clics
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuContentRef = useRef<HTMLDivElement | null>(null);
-  
-  // Use theme hook
-  const { theme, toggleTheme, mounted } = useTheme();
-  // Ne déterminer isDark que lorsque le composant est monté
-  const isDark = mounted && theme === 'dark';
-  
-  // Handle login form close
-  const handleLoginClose = (): void => {
-    setShowLoginForm(false);
-  };
-  
-  // Handle register form close
-  const handleRegisterClose = (): void => {
-    setShowRegisterForm(false);
-  };
   
   // Toggle mobile menu
   const toggleMobileMenu = (e: React.MouseEvent<HTMLButtonElement>): void => {
@@ -117,25 +29,6 @@ export default function Home() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
   
-  // Handle successful login
-  const handleLoginSuccess = (): void => {
-    setShowLoginForm(false);
-  };
-  
-  // Handle successful registration
-  const handleRegisterSuccess = (): void => {
-    setShowRegisterForm(false);
-    setShowLoginForm(true);
-  };
-  
-  // Handle successful login/register
-  useEffect(() => {
-    if (isAuthenticated) {
-      setShowLoginForm(false);
-      setShowRegisterForm(false);
-    }
-  }, [isAuthenticated]);
-
   // Close mobile menu when clicking outside
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -168,17 +61,9 @@ export default function Home() {
   }, [mobileMenuOpen]);
 
   return (
-    <main className={`min-h-screen font-sans text-base transition-colors duration-300
-      ${isDark 
-        ? 'bg-slate-900 text-slate-100' 
-        : 'bg-slate-50 text-slate-900'}`}
-    >
+    <main className="min-h-screen font-sans text-base bg-slate-900 text-slate-100">
       {/* Modern Navbar with glassmorphism effect - Mobile Optimized */}
-      <header className={`sticky top-0 z-40 backdrop-blur-lg shadow-sm border-b transition-colors duration-300
-        ${isDark 
-          ? 'bg-slate-900/70 border-slate-800' 
-          : 'bg-white/70 border-slate-100'}`}
-      >
+      <header className="sticky top-0 z-40 backdrop-blur-lg shadow-sm border-b bg-slate-900/70 border-slate-800">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -188,33 +73,13 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-2">
-              {/* Theme Toggle Button - Only render when mounted */}
-              {mounted && (
-                <button
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                    e.stopPropagation();
-                    toggleTheme();
-                  }}
-                  aria-label={isDark ? "Activer le thème clair" : "Activer le thème sombre"}
-                  className={`p-2 rounded-full transition-colors
-                    ${isDark 
-                      ? 'bg-slate-800 text-yellow-300 hover:bg-slate-700' 
-                      : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
-                >
-                  {isDark ? <FiSun size={20} /> : <FiMoon size={20} />}
-                </button>
-              )}
-              
               {/* Mobile menu button */}
               <div className="md:hidden">
                 <button 
                   ref={menuButtonRef}
                   id="mobile-menu-button"
                   onClick={toggleMobileMenu}
-                  className={`p-2 rounded-md transition-colors
-                    ${isDark 
-                      ? 'text-slate-400 hover:text-indigo-400 hover:bg-slate-800' 
-                      : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-100'}`}
+                  className="p-2 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-slate-800 transition-colors"
                 >
                   <FiMenu size={24} />
                 </button>
@@ -224,7 +89,7 @@ export default function Home() {
             {/* Desktop navigation */}
             <div className="hidden md:flex items-center gap-4">
               {isLoading ? (
-                <div className={`flex items-center ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                <div className="flex items-center text-slate-300">
                   <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -233,39 +98,27 @@ export default function Home() {
                 </div>
               ) : isAuthenticated ? (
                 <div className="flex items-center gap-4">
-                  <div className={`flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  <div className="flex items-center gap-2 text-slate-300">
                     <FiUser className="text-indigo-500" />
                     <span>Bienvenue, {user?.name || CURRENT_USER}</span>
                   </div>
                   <button
                     onClick={() => logout()}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-sm transition-all
-                      ${isDark 
-                        ? 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700' 
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full shadow-sm transition-all bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
                   >
-                    <FiLogOut className={isDark ? 'text-slate-400' : 'text-slate-500'} /> Déconnexion
+                    <FiLogOut className="text-slate-400" /> Déconnexion
                   </button>
                 </div>
               ) : (
                 <div className="flex gap-3">
                   <button
-                    onClick={() => {
-                      setShowLoginForm(true);
-                      setShowRegisterForm(false);
-                    }}
-                    className={`px-5 py-2 font-medium rounded-full shadow-sm transition-colors
-                      ${isDark 
-                        ? 'bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-slate-700' 
-                        : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}
+                    onClick={() => openModal('login')}
+                    className="px-5 py-2 font-medium rounded-full shadow-sm transition-colors bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-slate-700"
                   >
                     Connexion
                   </button>
                   <button
-                    onClick={() => {
-                      setShowRegisterForm(true);
-                      setShowLoginForm(false);
-                    }}
+                    onClick={() => openModal('register')}
                     className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-500 text-white font-medium rounded-full hover:from-indigo-700 hover:to-violet-600 transition-colors shadow-sm"
                   >
                     Inscription
@@ -281,13 +134,10 @@ export default function Home() {
           <div 
             ref={menuContentRef}
             id="mobile-menu-content"
-            className={`md:hidden absolute top-16 inset-x-0 rounded-b-xl border-t shadow-lg p-4 z-50 transition-colors
-              ${isDark 
-                ? 'bg-slate-800 border-slate-700' 
-                : 'bg-white border-slate-100'}`}
+            className="md:hidden absolute top-16 inset-x-0 rounded-b-xl border-t shadow-lg p-4 z-50 bg-slate-800 border-slate-700"
           >
             {isLoading ? (
-              <div className={`flex items-center justify-center p-4 ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+              <div className="flex items-center justify-center p-4 text-slate-300">
                 <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -296,39 +146,31 @@ export default function Home() {
               </div>
             ) : isAuthenticated ? (
               <div className="space-y-3">
-                <div className={`flex items-center gap-2 p-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                <div className="flex items-center gap-2 p-2 text-slate-300">
                   <FiUser className="text-indigo-500" />
                   <span>Bienvenue, {user?.name || CURRENT_USER}</span>
                 </div>
                 <button
                   onClick={() => logout()}
-                  className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl shadow-sm transition-all
-                    ${isDark 
-                      ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' 
-                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                  className="w-full flex items-center justify-center gap-2 p-3 rounded-xl shadow-sm transition-all bg-slate-700 text-slate-300 hover:bg-slate-600"
                 >
-                  <FiLogOut className={isDark ? 'text-slate-400' : 'text-slate-500'} /> Déconnexion
+                  <FiLogOut className="text-slate-400" /> Déconnexion
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={() => {
-                    setShowLoginForm(true);
-                    setShowRegisterForm(false);
+                    openModal('login');
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full p-3 font-medium rounded-xl shadow-sm transition-colors
-                    ${isDark 
-                      ? 'bg-slate-700 text-indigo-400 hover:bg-slate-600' 
-                      : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}
+                  className="w-full p-3 font-medium rounded-xl shadow-sm transition-colors bg-slate-700 text-indigo-400 hover:bg-slate-600"
                 >
                   Connexion
                 </button>
                 <button
                   onClick={() => {
-                    setShowRegisterForm(true);
-                    setShowLoginForm(false);
+                    openModal('register');
                     setMobileMenuOpen(false);
                   }}
                   className="w-full p-3 bg-gradient-to-r from-indigo-600 to-violet-500 text-white font-medium rounded-xl hover:from-indigo-700 hover:to-violet-600 transition-colors shadow-sm"
@@ -341,102 +183,34 @@ export default function Home() {
         )}
       </header>
 
-      {/* Authentication forms - Mobile optimized */}
-      {showLoginForm && (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)' }}
-        >
-          <div className={`p-5 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border transition-colors
-            ${isDark 
-              ? 'bg-slate-800 border-slate-700' 
-              : 'bg-white border-slate-100'}`}
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                Connexion
-              </h2>
-              <button
-                onClick={handleLoginClose}
-                className={`p-1 rounded-full transition-colors
-                  ${isDark 
-                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700' 
-                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            <LoginForm onLoginSuccess={handleLoginSuccess} />
-          </div>
-        </div>
-      )}
-
-      {showRegisterForm && (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)' }}
-        >
-          <div className={`p-5 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border transition-colors
-            ${isDark 
-              ? 'bg-slate-800 border-slate-700' 
-              : 'bg-white border-slate-100'}`}
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                Inscription
-              </h2>
-              <button
-                onClick={handleRegisterClose}
-                className={`p-1 rounded-full transition-colors
-                  ${isDark 
-                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700' 
-                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            <RegisterForm onRegisterSuccess={handleRegisterSuccess} />
-          </div>
-        </div>
-      )}
-
       {/* Hero Section - Mobile First */}
       <section className="relative">
-        <div className={`absolute inset-0 -z-10 transition-colors
-          ${isDark 
-            ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' 
-            : 'bg-gradient-to-br from-indigo-50 via-violet-50 to-slate-50'}`}
-        ></div>
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
         
         <div className="px-4 py-16 sm:py-20 md:py-28 max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-10 md:gap-12">
             <div className="flex-1 space-y-6">
-              <h1 className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-center md:text-left transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-center md:text-left text-white">
                 <span>L'expérience football </span>
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400">
                   réinventée
                 </span>
               </h1>
               
-              <p className={`text-lg sm:text-xl max-w-2xl text-center md:text-left transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-lg sm:text-xl max-w-2xl text-center md:text-left text-slate-300">
                 Mythayun réunit scores en direct, guides de stades et actualités officielles pour une expérience football inégalée.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full sm:w-auto">
                 <button 
-                  onClick={() => setShowRegisterForm(true)}
+                  onClick={() => openModal('register')}
                   className="w-full sm:w-auto px-6 py-4 bg-gradient-to-r from-indigo-600 to-violet-500 text-white rounded-xl sm:rounded-full text-lg font-medium hover:from-indigo-700 hover:to-violet-600 shadow-lg shadow-indigo-900/20 hover:shadow-xl hover:shadow-indigo-900/30 transition-all"
                 >
                   Rejoindre maintenant
                 </button>
                 <button 
                   onClick={() => {}}
-                  className={`w-full sm:w-auto px-6 py-4 border rounded-xl sm:rounded-full text-lg font-medium shadow-sm hover:shadow transition-all
-                    ${isDark 
-                      ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700' 
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                  className="w-full sm:w-auto px-6 py-4 border rounded-xl sm:rounded-full text-lg font-medium shadow-sm hover:shadow transition-all bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
                 >
                   En savoir plus
                 </button>
@@ -450,15 +224,13 @@ export default function Home() {
                 <div className="absolute -bottom-4 -left-4 w-20 h-20 sm:w-28 sm:h-28 bg-violet-400/20 rounded-full blur-2xl"></div>
                 
                 <div className="relative z-10 aspect-square flex items-center justify-center">
-                  {/* Football illustration adapted for dark mode */}
+                  {/* Football illustration for dark mode */}
                   <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg relative overflow-hidden">
-                    <div className={`absolute inset-2 rounded-full flex items-center justify-center
-                      ${isDark ? 'bg-slate-800' : 'bg-white'}`}
-                    >
+                    <div className="absolute inset-2 rounded-full flex items-center justify-center bg-slate-800">
                       <div className="w-full h-full relative">
                         <div className="absolute inset-0 grid grid-cols-2">
                           {Array.from({length: 6}).map((_, i) => (
-                            <div key={i} className={`aspect-square border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}></div>
+                            <div key={i} className="aspect-square border border-slate-700"></div>
                           ))}
                         </div>
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-full"></div>
@@ -473,170 +245,92 @@ export default function Home() {
       </section>
 
       {/* Features Section - Touch Friendly */}
-      <section className={`py-16 sm:py-20 transition-colors
-        ${isDark ? 'bg-slate-800' : 'bg-white'}`}
-      >
+      <section className="py-16 sm:py-20 bg-slate-800">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className={`text-2xl sm:text-3xl md:text-4xl font-bold mb-4 transition-colors
-              ${isDark ? 'text-white' : 'text-slate-800'}`}
-            >
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-white">
               Tout ce dont un fan a besoin
             </h2>
-            <p className={`max-w-2xl mx-auto text-base sm:text-lg transition-colors
-              ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-            >
+            <p className="max-w-2xl mx-auto text-base sm:text-lg text-slate-300">
               Découvrez une plateforme complète conçue pour les passionnés de football.
             </p>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {/* Feature 1 */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
-              ${isDark 
-                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700' 
-                : 'bg-white border-slate-100'}`}
-            >
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors
-                ${isDark 
-                  ? 'bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' 
-                  : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}
-              >
+            <div className="rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group bg-slate-700/50 border-slate-600 hover:bg-slate-700">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white">
                 <FiClock size={24} />
               </div>
-              <h3 className={`text-lg sm:text-xl font-bold mb-3 transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h3 className="text-lg sm:text-xl font-bold mb-3 text-white">
                 Scores en Direct
               </h3>
-              <p className={`text-sm sm:text-base transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-sm sm:text-base text-slate-300">
                 Suivez tous vos matchs préférés en temps réel avec des mises à jour instantanées et des statistiques détaillées.
               </p>
             </div>
 
             {/* Feature 2 */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
-              ${isDark 
-                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700' 
-                : 'bg-white border-slate-100'}`}
-            >
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors
-                ${isDark 
-                  ? 'bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' 
-                  : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}
-              >
+            <div className="rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group bg-slate-700/50 border-slate-600 hover:bg-slate-700">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white">
                 <FiMap size={24} />
               </div>
-              <h3 className={`text-lg sm:text-xl font-bold mb-3 transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h3 className="text-lg sm:text-xl font-bold mb-3 text-white">
                 Guides de Stades
               </h3>
-              <p className={`text-sm sm:text-base transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-sm sm:text-base text-slate-300">
                 Accédez à des guides communautaires pour maximiser votre expérience dans les stades du monde entier.
               </p>
             </div>
 
             {/* Feature 3 */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
-              ${isDark 
-                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700' 
-                : 'bg-white border-slate-100'}`}
-            >
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors
-                ${isDark 
-                  ? 'bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' 
-                  : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}
-              >
+            <div className="rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group bg-slate-700/50 border-slate-600 hover:bg-slate-700">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white">
                 <FiVideo size={24} />
               </div>
-              <h3 className={`text-lg sm:text-xl font-bold mb-3 transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h3 className="text-lg sm:text-xl font-bold mb-3 text-white">
                 Soirées Virtuelles
               </h3>
-              <p className={`text-sm sm:text-base transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-sm sm:text-base text-slate-300">
                 Créez ou rejoignez des soirées de visionnage pour partager les grands moments avec d'autres passionnés.
               </p>
             </div>
 
             {/* Feature 4 */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
-              ${isDark 
-                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700' 
-                : 'bg-white border-slate-100'}`}
-            >
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors
-                ${isDark 
-                  ? 'bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' 
-                  : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}
-              >
+            <div className="rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group bg-slate-700/50 border-slate-600 hover:bg-slate-700">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white">
                 <FiInfo size={24} />
               </div>
-              <h3 className={`text-lg sm:text-xl font-bold mb-3 transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h3 className="text-lg sm:text-xl font-bold mb-3 text-white">
                 Actualités Officielles
               </h3>
-              <p className={`text-sm sm:text-base transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-sm sm:text-base text-slate-300">
                 Restez informé avec les dernières actualités provenant directement des fédérations de football.
               </p>
             </div>
 
             {/* Feature 5 */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
-              ${isDark 
-                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700' 
-                : 'bg-white border-slate-100'}`}
-            >
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors
-                ${isDark 
-                  ? 'bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' 
-                  : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}
-              >
+            <div className="rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group bg-slate-700/50 border-slate-600 hover:bg-slate-700">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white">
                 <FiTrendingUp size={24} />
               </div>
-              <h3 className={`text-lg sm:text-xl font-bold mb-3 transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h3 className="text-lg sm:text-xl font-bold mb-3 text-white">
                 Assistance Voyage
               </h3>
-              <p className={`text-sm sm:text-base transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-sm sm:text-base text-slate-300">
                 Planifiez vos déplacements pour les matchs avec des informations sur l'hébergement et le transport.
               </p>
             </div>
 
             {/* Feature 6 */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group
-              ${isDark 
-                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700' 
-                : 'bg-white border-slate-100'}`}
-            >
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors
-                ${isDark 
-                  ? 'bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' 
-                  : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}
-              >
+            <div className="rounded-2xl p-6 sm:p-8 border shadow-sm hover:shadow-md transition-all group bg-slate-700/50 border-slate-600 hover:bg-slate-700">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mb-5 rounded-xl flex items-center justify-center transition-colors bg-slate-600 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white">
                 <FiUsers size={24} />
               </div>
-              <h3 className={`text-lg sm:text-xl font-bold mb-3 transition-colors
-                ${isDark ? 'text-white' : 'text-slate-800'}`}
-              >
+              <h3 className="text-lg sm:text-xl font-bold mb-3 text-white">
                 Communauté Active
               </h3>
-              <p className={`text-sm sm:text-base transition-colors
-                ${isDark ? 'text-slate-300' : 'text-slate-600'}`}
-              >
+              <p className="text-sm sm:text-base text-slate-300">
                 Échangez avec d'autres supporters passionnés et partagez vos expériences footballistiques.
               </p>
             </div>
@@ -668,11 +362,8 @@ export default function Home() {
             </p>
             <div className="pt-4">
               <button 
-                onClick={() => setShowRegisterForm(true)}
-                className={`w-full sm:w-auto px-8 py-4 rounded-xl sm:rounded-full text-lg font-medium shadow-lg hover:shadow-xl transition-all max-w-xs mx-auto
-                  ${isDark 
-                    ? 'bg-white text-indigo-600 hover:bg-slate-100' 
-                    : 'bg-white text-indigo-600 hover:bg-indigo-50'}`}
+                onClick={() => openModal('register')}
+                className="w-full sm:w-auto px-8 py-4 rounded-xl sm:rounded-full text-lg font-medium shadow-lg hover:shadow-xl transition-all max-w-xs mx-auto bg-white text-indigo-600 hover:bg-slate-100"
               >
                 S'inscrire maintenant
               </button>
@@ -682,9 +373,7 @@ export default function Home() {
       </section>
 
       {/* Footer - Mobile Optimized */}
-      <footer className={`text-white py-12 px-4 transition-colors
-        ${isDark ? 'bg-slate-900' : 'bg-slate-900'}`}
-      >
+      <footer className="text-white py-12 px-4 bg-slate-900">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1 space-y-4">
@@ -754,13 +443,10 @@ export default function Home() {
         </div>
       </footer>
       
-      {/* Add this for better mobile UX - back to top button */}
+      {/* Bouton retour en haut pour mobile */}
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className={`fixed bottom-6 right-6 p-3 rounded-full shadow-lg hover:shadow-xl transition-colors z-30 md:hidden
-          ${isDark 
-            ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-            : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+        className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg hover:shadow-xl transition-colors z-30 md:hidden bg-indigo-600 text-white hover:bg-indigo-700"
         aria-label="Retour en haut"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

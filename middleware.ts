@@ -1,71 +1,97 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { verifyToken } from './lib/auth/jwt';
+import { NextRequest, NextResponse } from 'next/server';
+import { jwtUtils } from './lib/auth/jwt';
 
-// List of protected routes that require authentication
-const protectedRoutes = [
+// Informations système actuelles
+const CURRENT_TIMESTAMP = "2025-05-07 15:07:46";
+const CURRENT_USER = "Sdiabate1337";
+
+// Définir les chemins protégés
+const PROTECTED_PATHS = [
   '/dashboard',
   '/profile',
   '/settings',
-  '/favorites',
 ];
 
-// List of auth routes (redirect authenticated users away from these)
-const authRoutes = [
+// Définir les chemins réservés aux administrateurs
+const ADMIN_PATHS = [
+  '/admin',
+];
+
+// Liste des chemins publics d'authentification
+const AUTH_PATHS = [
   '/login',
   '/register',
+  '/verify-email',
   '/forgot-password',
   '/reset-password',
 ];
 
-/**
- * Middleware to protect routes and handle authentication
- */
-export function middleware(request: NextRequest) {
-  // Get token from cookies
-  const accessToken = request.cookies.get('accessToken')?.value;
-  const refreshToken = request.cookies.get('refreshToken')?.value;
-  
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Check if the route requires authentication
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
-  
-  // Check if it's an auth route
-  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
-  
-  // If trying to access protected route without token, redirect to login
-  if (isProtectedRoute && !accessToken) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-  
-  // If user is authenticated and trying to access auth routes, redirect to dashboard
-  if (isAuthRoute && accessToken) {
-    // Verify token validity
-    const decodedToken = verifyToken(accessToken);
-    if (decodedToken) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Rediriger vers le tableau de bord si l'utilisateur est déjà connecté et tente d'accéder aux pages d'authentification
+  if (AUTH_PATHS.some(path => pathname.startsWith(path))) {
+    const accessToken = jwtUtils.middlewareUtils.getAccessTokenFromRequest(request);
+    if (accessToken) {
+      const payload = jwtUtils.verifyToken(accessToken);
+      if (payload) {
+        console.log(`[${CURRENT_TIMESTAMP}] Redirection depuis ${pathname} vers /dashboard (utilisateur déjà connecté)`);
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
     }
-    // If token is invalid, proceed to auth route
+    return NextResponse.next();
   }
   
-  // For all other requests, continue
+  // Ignorer le middleware pour les routes non protégées
+  if (!PROTECTED_PATHS.some(path => pathname.startsWith(path)) && 
+      !ADMIN_PATHS.some(path => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+  
+  // Récupérer le token d'accès des cookies
+  const accessToken = jwtUtils.middlewareUtils.getAccessTokenFromRequest(request);
+  
+  if (!accessToken) {
+    console.log(`[${CURRENT_TIMESTAMP}] Accès non autorisé à ${pathname}: token d'accès manquant`);
+    // Rediriger vers la connexion avec l'URL d'origine comme paramètre
+    const url = new URL('/login', request.url);
+    url.searchParams.set('redirectTo', encodeURI(pathname));
+    return NextResponse.redirect(url);
+  }
+  
+  // Vérifier le token
+  const payload = jwtUtils.verifyToken(accessToken);
+  
+  if (!payload) {
+    console.log(`[${CURRENT_TIMESTAMP}] Accès non autorisé à ${pathname}: token d'accès invalide ou expiré`);
+    // Essayer d'utiliser le token de rafraîchissement via une redirection
+    const url = new URL('/api/auth/refresh', request.url);
+    url.searchParams.set('redirectTo', encodeURI(pathname));
+    return NextResponse.redirect(url);
+  }
+  
+  // Vérifier les chemins réservés aux administrateurs
+  if (ADMIN_PATHS.some(path => pathname.startsWith(path)) && payload.role !== 'admin') {
+    console.log(`[${CURRENT_TIMESTAMP}] Accès non autorisé à ${pathname}: rôle ${payload.role} insuffisant (admin requis)`);
+    return NextResponse.redirect(new URL('/dashboard?message=Vous n\'avez pas les autorisations nécessaires', request.url));
+  }
+  
   return NextResponse.next();
 }
 
-// Configure which routes to run middleware on
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (e.g. robots.txt)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|.*\\.png$).*)',
+    // Routes d'authentification
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/verify-email',
+    
+    // Chemins protégés
+    '/dashboard/:path*',
+    '/profile/:path*',
+    '/settings/:path*',
+    '/admin/:path*',
   ],
 };

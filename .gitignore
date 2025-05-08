@@ -6,3 +6,4 @@ bin/
 coverage/
 node_modules/
 *.node
+.vercel

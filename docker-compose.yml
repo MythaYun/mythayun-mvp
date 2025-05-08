@@ -15,8 +15,22 @@ services:
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongodb:27017/mythayun
+      - JWT_SECRET=local-development-secret-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRY=1d
+      - JWT_ISSUER=dev.mythayun.com
+      - EMAIL_HOST=mailhog
+      - EMAIL_PORT=1025
+      - EMAIL_USER=test
+      - EMAIL_PASS=test
+      - EMAIL_FROM=dev@mythayun.com
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - API_URL=http://localhost:3000/api
+      - LOG_FORMAT=dev
+      - LOGGING_LEVEL=debug
     depends_on:
       - mongodb
+      - mailhog
     networks:
       - mythayun-network
     restart: unless-stopped
@@ -35,6 +49,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - mythayun-network
+    restart: unless-stopped
 
 networks:
   mythayun-network:

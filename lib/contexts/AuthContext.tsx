@@ -1,190 +1,105 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { IUser } from '@/lib/models/User';
 
-// Current information
-const CURRENT_TIMESTAMP = "2025-05-03 14:32:35";
-const CURRENT_USER = "Sdiabate1337";
-
-// User type definition
-export interface User {
-  _id?: string;
-  name: string;
-  email?: string;
-  role?: 'user' | 'admin';
-  avatar?: string;
-  lastLogin?: Date;
-  provider?: 'email' | 'google' | 'facebook';
-}
-
-// Auth context type
+// Type pour l'état d'authentification
 interface AuthContextType {
-  user: User | null;
+  user: Partial<IUser> | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  loginWithFacebook: () => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  clearError: () => void;
+  updateUser: (user: Partial<IUser> | null | undefined) => void;
+  logout: () => Promise<void>;
 }
 
-// Create the context with undefined as default value
+// Informations système actuelles
+const CURRENT_TIMESTAMP = "2025-05-07 17:16:45";
+const CURRENT_USER = "Sdiabate1337";
+
+// Création du contexte
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Props for AuthProvider
-interface AuthProviderProps {
-  children: ReactNode;
-}
+// Fournisseur du contexte d'authentification
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<Partial<IUser> | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-// Auth Provider component
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Simple login function
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Demo login logic (replace with real API call)
-      if (email === `${CURRENT_USER.toLowerCase()}@mythayun.com` && password === 'password123') {
-        setUser({
-          name: CURRENT_USER,
-          email: email,
-          role: 'user',
-          provider: 'email',
-          lastLogin: new Date(CURRENT_TIMESTAMP)
-        });
-        setIsAuthenticated(true);
-      } else {
-        throw new Error('Invalid credentials');
+  // Vérifier l'authentification au chargement
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setUser(data.user);
+            console.log(`[${CURRENT_TIMESTAMP}] Utilisateur authentifié:`, data.user.email);
+          } else {
+            setUser(null);
+            console.log(`[${CURRENT_TIMESTAMP}] Aucun utilisateur authentifié`);
+          }
+        } else {
+          setUser(null);
+          console.log(`[${CURRENT_TIMESTAMP}] Erreur lors de la récupération des données utilisateur`);
+        }
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Erreur lors de la vérification de l'authentification:`, error);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Google login function
-  const loginWithGoogle = async () => {
-    setIsLoading(true);
-    setError(null);
+    };
+
+    checkAuth();
+  }, []);
+
+  // Mettre à jour l'utilisateur - Fonction corrigée
+  const updateUser = (newUser: Partial<IUser> | null | undefined) => {
+    // Convertir undefined en null
+    const actualUser = newUser === undefined ? null : newUser;
     
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Demo Google login (replace with real Google Auth)
-      setUser({
-        name: CURRENT_USER,
-        email: `${CURRENT_USER.toLowerCase()}@gmail.com`,
-        role: 'user',
-        provider: 'google',
-        avatar: 'https://lh3.googleusercontent.com/a/default-user',
-        lastLogin: new Date(CURRENT_TIMESTAMP)
-      });
-      setIsAuthenticated(true);
-    } catch (err: any) {
-      setError(err.message || 'Google login failed');
-    } finally {
-      setIsLoading(false);
+    if (actualUser) {
+      console.log(`[${CURRENT_TIMESTAMP}] Mise à jour utilisateur:`, actualUser.email);
+    } else {
+      console.log(`[${CURRENT_TIMESTAMP}] Effacement des données utilisateur`);
     }
-  };
-  
-  // Facebook login function
-  const loginWithFacebook = async () => {
-    setIsLoading(true);
-    setError(null);
     
+    setUser(actualUser);
+  };
+
+  // Déconnexion
+  const logout = async () => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Demo Facebook login (replace with real Facebook Auth)
-      setUser({
-        name: CURRENT_USER,
-        email: `${CURRENT_USER.toLowerCase()}@facebook.com`,
-        role: 'user',
-        provider: 'facebook',
-        avatar: 'https://graph.facebook.com/default-user/picture',
-        lastLogin: new Date(CURRENT_TIMESTAMP)
-      });
-      setIsAuthenticated(true);
-    } catch (err: any) {
-      setError(err.message || 'Facebook login failed');
-    } finally {
-      setIsLoading(false);
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (response.ok) {
+        setUser(null);
+        console.log(`[${CURRENT_TIMESTAMP}] Déconnexion réussie`);
+      } else {
+        console.error(`[${CURRENT_TIMESTAMP}] Erreur lors de la déconnexion:`, response.status);
+      }
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Erreur lors de la déconnexion:`, error);
     }
   };
 
-  // Simple register function
-  const register = async (name: string, email: string, password: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Demo register logic (replace with real API call)
-      setUser({
-        name: name,
-        email: email,
-        role: 'user',
-        provider: 'email',
-        lastLogin: new Date(CURRENT_TIMESTAMP)
-      });
-      setIsAuthenticated(true);
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  return (
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      updateUser,
+      logout
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
-  // Simple logout function
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  // Clear error message
-  const clearError = () => setError(null);
-
-  // Create context value
-  const value: AuthContextType = {
-    user,
-    isAuthenticated,
-    isLoading,
-    error,
-    login,
-    loginWithGoogle,
-    loginWithFacebook,
-    register,
-    logout,
-    clearError
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-// Custom hook to use auth context
-export function useAuth() {
+// Hook personnalisé pour utiliser le contexte d'authentification
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  
   return context;
-}
+};

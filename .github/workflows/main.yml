@@ -9,6 +9,8 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CURRENT_TIMESTAMP: "2025-05-08 15:06:18"
+  CURRENT_USER: "Sdiabate1337"
 
 jobs:
   validate:
@@ -52,6 +54,52 @@ jobs:
       - name: Type check
         run: npm run type-check
 
+      - name: Add lint status to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => {
+              return comment.user.login === 'github-actions[bot]' && 
+                     comment.body.includes('## ⚙️ Validation');
+            });
+            
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '✅' : status === 'failure' ? '❌' : '⚠️';
+            
+            const body = `## ⚙️ Validation
+            
+            ${emoji} **Statut**: ${status}
+            
+            - **Vérification du 💅 Lint**: ${status === 'success' ? 'Réussie' : 'Attention - Quelques règles non respectées'}
+            - **Vérification des 🔍 Types**: ${status === 'success' ? 'Réussie' : 'Échec'}
+            
+            **Date**: ${process.env.CURRENT_TIMESTAMP}
+            **Run**: [Workflow #${context.runId}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            `;
+            
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -60,6 +108,8 @@ jobs:
       actions: read
       contents: read
       security-events: write
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -86,7 +136,7 @@ jobs:
       - name: OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: 'mythyun-mvp'
+          project: 'mythayun-mvp'
           path: '.'
           format: 'HTML'
           out: 'report'
@@ -101,6 +151,53 @@ jobs:
           name: dependency-check-report
           path: report
           retention-days: 5
+
+      - name: Add security scan status to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => {
+              return comment.user.login === 'github-actions[bot]' && 
+                     comment.body.includes('## 🔒 Analyse de sécurité');
+            });
+            
+            const vulnerabilities = '${{ steps.trivy.outputs.vulnerabilities || 0 }}';
+            const severity = vulnerabilities > 0 ? '⚠️' : '✅';
+            
+            const body = `## 🔒 Analyse de sécurité
+            
+            ${severity} **Statut**: ${{ job.status }}
+            
+            - **CodeQL**: Analyse statique terminée
+            - **NPM Audit**: [Résultats disponibles](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            - **OWASP Dependency Check**: [Rapport généré](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            
+            **Date**: ${process.env.CURRENT_TIMESTAMP}
+            **Par**: ${process.env.CURRENT_USER}
+            `;
+            
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
 
   test:
     name: Test
@@ -133,7 +230,8 @@ jobs:
           fi
 
       - name: Run tests with Docker Compose
-        run: docker compose -f docker-compose.test.yml up --build --exit-code-from app-test || true
+        id: run-tests
+        run: docker compose -f docker-compose.test.yml up --build --exit-code-from app-test || echo "::set-output name=test_failed::true"
         env:
           NODE_ENV: test
           CI: true
@@ -141,6 +239,55 @@ jobs:
           JWT_EXPIRY: "1d"
           JWT_ALGORITHM: "HS256"
           JWT_ISSUER: "test.mythayun.com"
+
+      - name: Add test status to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => {
+              return comment.user.login === 'github-actions[bot]' && 
+                     comment.body.includes('## 🧪 Tests');
+            });
+            
+            const testFailed = '${{ steps.run-tests.outputs.test_failed }}' === 'true';
+            const emoji = testFailed ? '❌' : '✅';
+            const status = testFailed ? 'failure' : 'success';
+            
+            const body = `## 🧪 Tests
+            
+            ${emoji} **Statut**: ${status}
+            
+            - **Tests automatisés**: ${testFailed ? 'Échec - Voir les logs' : 'Tous les tests ont réussi'}
+            - **Couverture**: Les rapports sont disponibles [ici](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            
+            **Date**: ${process.env.CURRENT_TIMESTAMP}
+            **Exécutés par**: ${process.env.CURRENT_USER}
+            
+            Pour voir les détails complets, consultez les [logs des tests](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            `;
+            
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
 
   build:
     name: Build Docker Image
@@ -204,6 +351,7 @@ jobs:
         
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
+        id: trivy
         with:
           # Fix: GitHub Container Registry requires lowercase repository names
           image-ref: ${{ env.REGISTRY }}/${{ env.LOWERCASE_IMAGE_NAME }}:${{ github.sha }}
@@ -216,6 +364,53 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'trivy'
+
+      - name: Add build status to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => {
+              return comment.user.login === 'github-actions[bot]' && 
+                     comment.body.includes('## 🏗️ Build Docker');
+            });
+            
+            const body = `## 🏗️ Build Docker
+            
+            ✅ **Statut**: success
+            
+            - **Image Docker**: \`${{ steps.meta.outputs.tags }}\`
+            - **Plateforme**: linux/amd64, linux/arm64
+            ${github.event_name != 'pull_request' ? '- **Push vers registry**: Réussi' : '- **Push vers registry**: Ignoré (mode PR)'}
+            
+            **Date**: ${process.env.CURRENT_TIMESTAMP}
+            **Exécuté par**: ${process.env.CURRENT_USER}
+            **SHA**: \`${context.sha.substring(0, 7)}\`
+            
+            Cette image est prête pour le déploiement.
+            `;
+            
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
 
   deploy-development:
     name: Deploy to Development
@@ -239,6 +434,52 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
+      
+      - name: Create deployment summary
+        run: |
+          echo "::notice title=🚀 Déploiement Development::Application déployée sur ${{ steps.deploy.outputs.preview-url }}"
+
+      - name: Notify Deployment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Create a release style comment
+            const body = `# 🚀 Déploiement sur Development
+
+            ## Informations
+
+            - **URL**: [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }})
+            - **Branche**: develop
+            - **Commit**: [\`${context.sha.substring(0, 8)}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
+            - **Auteur du déploiement**: ${process.env.CURRENT_USER}
+            - **Date**: ${process.env.CURRENT_TIMESTAMP}
+
+            ## Liens utiles pour les tests
+
+            | Description | URL |
+            |-------------|-----|
+            | Application | [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }}) |
+            | Health Check | [${{ steps.deploy.outputs.preview-url }}/api/health](${{ steps.deploy.outputs.preview-url }}/api/health) |
+            | Documentation API | [${{ steps.deploy.outputs.preview-url }}/api/docs](${{ steps.deploy.outputs.preview-url }}/api/docs) |
+
+            ## Comptes de test
+
+            | Type | Email | Mot de passe |
+            |------|-------|-------------|
+            | Admin | \`admin@mythayun.com\` | \`admin123\` |
+            | Utilisateur | \`user@mythayun.com\` | \`user123\` |
+
+            ## 📢 Pour signaler un problème
+
+            Créez une issue avec le label \`environment:development\` et mentionnez \`@MythaYun/developers\`.`;
+
+            // Post a comment on the commit
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body
+            });
 
   deploy-staging:
     name: Deploy to Staging
@@ -263,6 +504,59 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
 
+      - name: Create deployment summary
+        run: |
+          echo "::notice title=🚀 Déploiement Staging::Application déployée sur ${{ steps.deploy.outputs.preview-url }}"
+
+      - name: Notify Deployment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Create a release style comment
+            const body = `# 🚀 Déploiement sur Staging
+
+            ## Informations
+
+            - **URL**: [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }})
+            - **Branche**: staging
+            - **Commit**: [\`${context.sha.substring(0, 8)}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
+            - **Auteur du déploiement**: ${process.env.CURRENT_USER}
+            - **Date**: ${process.env.CURRENT_TIMESTAMP}
+
+            ## Liens utiles pour les tests
+
+            | Description | URL |
+            |-------------|-----|
+            | Application | [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }}) |
+            | Health Check | [${{ steps.deploy.outputs.preview-url }}/api/health](${{ steps.deploy.outputs.preview-url }}/api/health) |
+            | Documentation API | [${{ steps.deploy.outputs.preview-url }}/api/docs](${{ steps.deploy.outputs.preview-url }}/api/docs) |
+
+            ## Comptes de test
+
+            | Type | Email | Mot de passe |
+            |------|-------|-------------|
+            | Admin | \`admin@mythayun.com\` | \`admin123\` |
+            | Utilisateur | \`user@mythayun.com\` | \`user123\` |
+
+            ## 📢 Pour signaler un problème
+
+            Créez une issue avec le label \`environment:staging\` et mentionnez \`@MythaYun/testers\`.
+
+            ## 🔍 Tests requis avant la production
+
+            - [ ] Connexion et inscription
+            - [ ] Fonctionnalités principales
+            - [ ] Envoi d'emails
+            - [ ] Responsive design`;
+
+            // Post a comment on the commit
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body
+            });
+
   deploy-production:
     name: Deploy to Production
     needs: build
@@ -285,35 +579,239 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
+          production: true
 
+      - name: Create deployment summary
+        run: |
+          echo "::notice title=🚀 Déploiement Production::Application déployée sur ${{ steps.deploy.outputs.preview-url }}"
 
-    # VERIFICATION STAGE - Now needs to run for each deployment
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}-${{ github.sha }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            ## 🚀 Déploiement en production v${{ github.run_number }}
+            
+            **Date**: ${{ env.CURRENT_TIMESTAMP }}
+            **Déployé par**: ${{ env.CURRENT_USER }}
+            **URL**: ${{ steps.deploy.outputs.preview-url }}
+            **Commit**: ${{ github.sha }}
+            
+            ### 🔗 Liens pour tester:
+            
+            - Application: [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }})
+            - Health Check: [${{ steps.deploy.outputs.preview-url }}/api/health](${{ steps.deploy.outputs.preview-url }}/api/health)
+            - Documentation API: [${{ steps.deploy.outputs.preview-url }}/api/docs](${{ steps.deploy.outputs.preview-url }}/api/docs)
+          draft: false
+          prerelease: false
+
+      - name: Notify Deployment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Create a release style comment
+            const body = `# 🚀 Déploiement en Production
+
+            ## ✨ Nouvelle version en ligne!
+
+            - **URL**: [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }})
+            - **Version**: v${{ github.run_number }}
+            - **Release**: [GitHub Release](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${{ github.run_number }}-${context.sha})
+            - **Commit**: [\`${context.sha.substring(0, 8)}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
+            - **Auteur du déploiement**: ${process.env.CURRENT_USER}
+            - **Date**: ${process.env.CURRENT_TIMESTAMP}
+
+            ## Liens utiles
+
+            | Description | URL |
+            |-------------|-----|
+            | Application | [${{ steps.deploy.outputs.preview-url }}](${{ steps.deploy.outputs.preview-url }}) |
+            | Health Check | [${{ steps.deploy.outputs.preview-url }}/api/health](${{ steps.deploy.outputs.preview-url }}/api/health) |
+            | Documentation API | [${{ steps.deploy.outputs.preview-url }}/api/docs](${{ steps.deploy.outputs.preview-url }}/api/docs) |
+
+            ## 📈 Monitoring
+
+            N'oubliez pas de vérifier les performances de l'application dans le [Dashboard Vercel](https://vercel.com/mythayun-mvps-projects/mythayun-mvp/analytics).
+
+            ## 🐛 Signaler un problème en production
+
+            En cas d'urgence, contactez directement l'équipe via Slack #prod-alerts ou créez une issue critique.`;
+
+            // Post a comment on the commit
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body
+            });
+
   verify:
     name: Verify ${{ github.ref_name }} Deployment
     needs: [deploy-development, deploy-staging, deploy-production]
     if: |
       always() && 
       (needs.deploy-development.result == 'success' || 
-       needs.deploy-staging.result == 'success' || 
-       needs.deploy-production.result == 'success')
+      needs.deploy-staging.result == 'success' || 
+      needs.deploy-production.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
       
-      # Verify healthcheck endpoint - now using conditional for URL
+      # Déterminer l'URL de déploiement
+      - name: Set Deployment URL
+        id: set-url
+        run: |
+          if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+            echo "deployment_url=${{ needs.deploy-production.outputs.url }}" >> $GITHUB_OUTPUT
+            echo "environment=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.deploy-staging.result }}" == "success" ]]; then
+            echo "deployment_url=${{ needs.deploy-staging.outputs.url }}" >> $GITHUB_OUTPUT
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "deployment_url=${{ needs.deploy-development.outputs.url }}" >> $GITHUB_OUTPUT
+            echo "environment=development" >> $GITHUB_OUTPUT
+          fi
+
+      # Vérifier l'endpoint de santé (health)
       - name: Health check deployment
+        id: health-check
         run: |
           echo "Checking health of deployment..."
-          URL="${{ needs.deploy-production.outputs.url || needs.deploy-staging.outputs.url || needs.deploy-development.outputs.url }}"
-          wget --no-verbose --tries=3 --timeout=10 --spider $URL/api/health || exit 1
+          echo "URL: ${{ steps.set-url.outputs.deployment_url }}"
+          curl -s "${{ steps.set-url.outputs.deployment_url }}/api/health" > health.json
+          cat health.json
+          if grep -q "\"status\":\"ok\"" health.json; then
+            echo "health_ok=true" >> $GITHUB_OUTPUT
+          else
+            echo "health_ok=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
       
-      # Performance testing with Lighthouse
+      # Créer une issue GitHub en cas d'échec
+      - name: Create issue on failure
+        if: failure() && steps.health-check.outputs.health_ok != 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔴 Échec de vérification: ${{ steps.set-url.outputs.environment }} (${{ github.ref_name }})`,
+              body: `
+              # ❌ Échec de vérification du déploiement
+              
+              ## Informations
+              
+              - **Environnement**: ${{ steps.set-url.outputs.environment }}
+              - **Branche**: \`${{ github.ref_name }}\`
+              - **URL**: [${{ steps.set-url.outputs.deployment_url }}](${{ steps.set-url.outputs.deployment_url }})
+              - **Date**: ${process.env.CURRENT_TIMESTAMP}
+              - **Déploiement par**: ${process.env.CURRENT_USER}
+              - **Run**: [Workflow #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ## Détails de l'erreur
+              
+              L'endpoint de santé \`/api/health\` n'a pas répondu avec le statut \`ok\`.
+              
+              ## Actions requises
+              
+              1. Vérifiez les logs Vercel pour ce déploiement
+              2. Vérifiez les variables d'environnement
+              3. Vérifiez la connexion à MongoDB
+              4. Redéployez si nécessaire
+              
+              **@MythaYun/developers**
+              `,
+              labels: ['bug', `env:${{ steps.set-url.outputs.environment }}`, 'priority:high']
+            })
+      
+      # Performance testing avec Lighthouse
       - name: Run Lighthouse CI
+        id: lighthouse
         uses: treosh/lighthouse-ci-action@v10
         with:
           urls: |
-            ${{ needs.deploy-production.outputs.url || needs.deploy-staging.outputs.url || needs.deploy-development.outputs.url }}
+            ${{ steps.set-url.outputs.deployment_url }}
           temporaryPublicStorage: true
           uploadArtifacts: true
           runs: 3
+
+      # Notification de réussite
+      - name: Post verification summary
+        if: success()
+        run: |
+          echo "::notice title=✅ Déploiement vérifié::${{ steps.set-url.outputs.environment }} - ${{ steps.set-url.outputs.deployment_url }}"
+
+      # Ajouter un commentaire de vérification
+      - name: Add verification results comment
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Formatage des résultats Lighthouse
+            const lighthouseResults = ${{ toJSON(steps.lighthouse.outputs) }};
+            let lighthouseTable = '';
+            
+            if (lighthouseResults && lighthouseResults.links) {
+              const results = JSON.parse(lighthouseResults.manifest)[0].summary;
+              lighthouseTable = `
+              | Métrique | Score |
+              |----------|-------|
+              | Performance | ${Math.round(results.performance * 100)} / 100 |
+              | Accessibilité | ${Math.round(results.accessibility * 100)} / 100 |
+              | Meilleures pratiques | ${Math.round(results['best-practices'] * 100)} / 100 |
+              | SEO | ${Math.round(results.seo * 100)} / 100 |
+              
+              [Rapport Lighthouse complet](${lighthouseResults.links[0].url})
+              `;
+            } else {
+              lighthouseTable = "Pas de résultats Lighthouse disponibles";
+            }
+            
+            const body = `# ✅ Vérification du déploiement réussie
+            
+            ## 🔍 Environnement: ${{ steps.set-url.outputs.environment }}
+            
+            - **URL**: [${{ steps.set-url.outputs.deployment_url }}](${{ steps.set-url.outputs.deployment_url }})
+            - **Date**: ${process.env.CURRENT_TIMESTAMP}
+            - **Health Check**: ✅ OK
+            
+            ## 📊 Résultats Lighthouse
+            
+            ${lighthouseTable}
+            
+            ## 📱 Liens pour les tests manuels
+            
+            | Test | URL |
+            |------|-----|
+            | Application | [${{ steps.set-url.outputs.deployment_url }}](${{ steps.set-url.outputs.deployment_url }}) |
+            | Health Check | [${{ steps.set-url.outputs.deployment_url }}/api/health](${{ steps.set-url.outputs.deployment_url }}/api/health) |
+            | Documentation API | [${{ steps.set-url.outputs.deployment_url }}/api/docs](${{ steps.set-url.outputs.deployment_url }}/api/docs) |
+            
+            ## 🧪 Comptes de test
+            
+            | Type | Email | Mot de passe |
+            |------|-------|-------------|
+            | Admin | \`admin@mythayun.com\` | \`admin123\` |
+            | Utilisateur | \`user@mythayun.com\` | \`user123\` |`;
+            
+            if (context.eventName === 'pull_request') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            } else {
+              await github.rest.repos.createCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+                body
+              });
+            }
