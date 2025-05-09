@@ -7,72 +7,77 @@ import { jwtUtils } from './jwt';
 import { sessionUtils } from './session';
 import mongoose from 'mongoose';
 
-// Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-07 12:35:03";
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-09 16:45:45"; // Updated to current timestamp
 const CURRENT_USER = "Sdiabate1337";
 
-// Types de réponses pour les actions
+// Types for action responses
 type AuthResult = {
   success: boolean;
   message?: string;
-  user?: Partial<IUser>;
+  user?: Partial<IUser> & { _id: string }; // Ensure _id is always a string
 };
 
 /**
- * Action de connexion
+ * Login action
  */
 export async function loginAction(formData: FormData): Promise<AuthResult> {
+  console.log('Starting login process...');
   try {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    // Validation simple
+    // Simple validation
     if (!email || !password) {
       return { success: false, message: 'Email et mot de passe requis' };
     }
     
     await connectToDatabase();
+    console.log('Connected to database successfully');
     
-    // Rechercher l'utilisateur et inclure le mot de passe pour la vérification
+    // Find user and include password for verification
     const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
       return { success: false, message: 'Identifiants invalides' };
     }
     
-    // Vérifier si le compte est verrouillé
+    // Check if account is locked
     if (user.isAccountLocked()) {
       return { success: false, message: 'Compte temporairement verrouillé. Veuillez réessayer plus tard' };
     }
     
-    // Vérifier le mot de passe
+    // Verify password
     const isMatch = await user.comparePassword(password);
     
     if (!isMatch) {
-      // Incrémenter les tentatives de connexion
+      // Increment login attempts
       await user.incrementLoginAttempts();
       return { success: false, message: 'Identifiants invalides' };
     }
     
-    // Réinitialiser les tentatives de connexion
+    // Reset login attempts
     await user.resetLoginAttempts();
     
-    // Mettre à jour la date de dernière connexion
+    // Update last login date
     user.lastLogin = new Date(CURRENT_TIMESTAMP);
     await user.save();
     
-    // Générer les tokens
+    // Generate tokens
     const accessToken = jwtUtils.generateAccessToken(user);
     const refreshToken = jwtUtils.generateRefreshToken(user);
     
-    // Définir les cookies
+    // Set cookies
     await jwtUtils.setAuthCookies(accessToken, refreshToken);
     
-    // Retourner l'utilisateur (sans données sensibles)
+    console.log('Login successful for user:', user.email);
+    
+    // Return the user (without sensitive data)
+    // FIX: Convert ObjectId to string
     return {
       success: true,
       user: {
-        _id: user._id,
+        _id: user._id.toString(), // Convert to string to avoid serialization issues
         name: user.name,
         email: user.email,
         role: user.role,
@@ -82,34 +87,39 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
       }
     };
   } catch (error) {
-    console.error('Erreur de connexion:', error);
+    console.error('Login error details:', error);
     return { success: false, message: 'Une erreur s\'est produite lors de la connexion' };
   }
 }
 
 /**
- * Action d'inscription
+ * Registration action
  */
 export async function registerAction(formData: FormData): Promise<AuthResult> {
+  console.log('Starting registration process...');
   try {
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    // Validation simple
+    console.log('Register data:', { name, email, passwordLength: password?.length });
+    
+    // Simple validation
     if (!name || !email || !password) {
       return { success: false, message: 'Tous les champs sont obligatoires' };
     }
     
     await connectToDatabase();
+    console.log('Connected to database successfully');
     
-    // Vérifier si l'utilisateur existe déjà
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('User already exists:', email);
       return { success: false, message: 'Cet email est déjà utilisé' };
     }
     
-    // Créer un nouvel utilisateur
+    // Create a new user
     const user = new User({
       name,
       email,
@@ -124,20 +134,24 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
     });
     
     await user.save();
+    console.log('New user saved:', email);
     
-    // Générer les tokens
+    // Generate tokens
     const accessToken = jwtUtils.generateAccessToken(user);
     const refreshToken = jwtUtils.generateRefreshToken(user);
     
-    // Définir les cookies
+    // Set cookies
     await jwtUtils.setAuthCookies(accessToken, refreshToken);
     
-    // Retourner l'utilisateur (sans données sensibles)
+    console.log('Registration successful for user:', email);
+    
+    // Return the user (without sensitive data)
+    // FIX: Convert ObjectId to string
     return {
       success: true,
       message: 'Inscription réussie',
       user: {
-        _id: user._id,
+        _id: user._id.toString(), // Convert to string to avoid serialization issues
         name: user.name,
         email: user.email,
         role: user.role,
@@ -145,26 +159,28 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       }
     };
   } catch (error) {
-    console.error('Erreur d\'inscription:', error);
+    console.error('Registration error details:', {
+  
+    });
     return { success: false, message: 'Une erreur s\'est produite lors de l\'inscription' };
   }
 }
 
 /**
- * Action de déconnexion
+ * Logout action
  */
 export async function logoutAction(): Promise<AuthResult> {
   try {
     await jwtUtils.clearAuthCookies();
     return { success: true, message: 'Déconnexion réussie' };
   } catch (error) {
-    console.error('Erreur de déconnexion:', error);
+    console.error('Logout error:', error);
     return { success: false, message: 'Erreur lors de la déconnexion' };
   }
 }
 
 /**
- * Protéger une route (pour les composants serveur)
+ * Protect a route (for server components)
  */
 export async function requireAuth(requiredRole?: string): Promise<IUser> {
   try {
@@ -174,14 +190,15 @@ export async function requireAuth(requiredRole?: string): Promise<IUser> {
       redirect('/login?message=Veuillez vous connecter pour continuer');
     }
     
-    // Si un rôle spécifique est requis, le vérifier
+    // If a specific role is required, verify it
     if (requiredRole && user.role !== requiredRole) {
       redirect('/dashboard?message=Vous n\'avez pas les autorisations nécessaires');
     }
     
+    // No need to convert to string here as it's not being sent to client components
     return user;
   } catch (error) {
-    console.error('Erreur de vérification d\'authentification:', error);
+    console.error('Authentication verification error:', error);
     redirect('/login?message=Erreur d\'authentification');
   }
 }
