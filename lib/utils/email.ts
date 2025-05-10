@@ -47,13 +47,26 @@ try {
 
 /**
  * Helper function to get the appropriate base URL
+ * This is the FIXED version that ensures no double ports
  */
 function getBaseUrl(): string {
+  // For GitHub Codespaces
   if (process.env.CODESPACE_NAME) {
+    // The port is already included in the domain name structure
     return `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
   }
   
-  return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  // For local development or other environments
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  
+  // Prevent double port in URL
+  // If we're using localhost and port is not in the URL, add it
+  if (baseUrl.includes('localhost') && !baseUrl.includes(':')) {
+    return `${baseUrl}:3000`;
+  }
+  
+  // Otherwise just use the base URL as is
+  return baseUrl;
 }
 
 /**
@@ -68,7 +81,7 @@ function getMailhogUrl(): string {
 }
 
 /**
- * Envoyer un email
+ * Send an email
  */
 async function sendMail(options: {
   to: string;
@@ -89,7 +102,7 @@ async function sendMail(options: {
       to,
       subject,
       html,
-      text: text || html.replace(/<[^>]*>?/gm, '') // Version texte brut fallback
+      text: text || html.replace(/<[^>]*>?/gm, '') // Text fallback
     });
     
     console.log(`[${CURRENT_TIMESTAMP}] Email sent to ${to}, ID: ${result.messageId}`);
@@ -103,7 +116,7 @@ async function sendMail(options: {
 }
 
 /**
- * Envoyer un email de vérification
+ * Send verification email
  */
 export async function sendVerificationEmail(
   email: string,
@@ -114,12 +127,12 @@ export async function sendVerificationEmail(
   
   try {
     const baseUrl = getBaseUrl();
+    
+    // Explicitly log the full verification URL for debugging
     const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${token}`;
+    console.log(`[${CURRENT_TIMESTAMP}] Generated verification URL: ${verificationUrl}`);
     
-    console.log(`[${CURRENT_TIMESTAMP}] Base URL: ${baseUrl}`);
-    console.log(`[${CURRENT_TIMESTAMP}] Verification URL: ${verificationUrl}`);
-    
-    // Template HTML de base pour l'email de vérification
+    // Email HTML template with verification link
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #4f46e5;">Bienvenue sur MythaYun!</h2>

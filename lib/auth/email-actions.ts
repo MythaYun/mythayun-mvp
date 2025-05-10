@@ -83,7 +83,8 @@ export async function requestVerificationEmail(email: string): Promise<EmailActi
  */
 export async function verifyEmail(token: string): Promise<EmailActionResult> {
   try {
-    console.log(`[${CURRENT_TIMESTAMP}] Verifying email with token: ${token.substring(0, 10)}...`);
+    const currentTime = "2025-05-10 13:23:57";
+    console.log(`[${currentTime}] Verifying email with token: ${token.substring(0, 10)}...`);
     
     await connectToDatabase();
     
@@ -93,6 +94,8 @@ export async function verifyEmail(token: string): Promise<EmailActionResult> {
       .update(token)
       .digest('hex');
     
+    console.log(`[${currentTime}] Hashed token: ${hashedToken.substring(0, 10)}...`);
+    
     // Find user with this token
     const user = await User.findOne({
       verificationToken: hashedToken,
@@ -100,12 +103,26 @@ export async function verifyEmail(token: string): Promise<EmailActionResult> {
     });
     
     if (!user) {
-      console.log(`[${CURRENT_TIMESTAMP}] Invalid or expired verification token: ${token.substring(0, 10)}...`);
+      console.log(`[${currentTime}] No user found with the provided token`);
+      
+      // Debug: Check if there are any users with verification tokens
+      const anyUserWithToken = await User.findOne({ 
+        verificationToken: { $exists: true } 
+      });
+      
+      if (anyUserWithToken) {
+        console.log(`[${currentTime}] Found a user with some verification token: ${anyUserWithToken.email}`);
+      } else {
+        console.log(`[${currentTime}] No users have verification tokens set`);
+      }
+      
       return { 
         success: false, 
         message: 'The verification link is invalid or has expired.'
       };
     }
+    
+    console.log(`[${currentTime}] Found user: ${user.email}`);
     
     // Mark email as verified
     user.isVerified = true;
@@ -113,13 +130,13 @@ export async function verifyEmail(token: string): Promise<EmailActionResult> {
     user.verificationExpires = undefined;
     await user.save();
     
-    console.log(`[${CURRENT_TIMESTAMP}] Email verified successfully for: ${user.email}`);
+    console.log(`[${currentTime}] Email verified successfully for: ${user.email}`);
     return { 
       success: true, 
       message: 'Your email has been verified successfully.'
     };
   } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Error verifying email:`, error);
+    console.error(`[2025-05-10 13:23:57] Error verifying email:`, error);
     return { 
       success: false, 
       message: 'An error occurred while verifying your email.'

@@ -25,23 +25,31 @@ export default function Home() {
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuContentRef = useRef<HTMLDivElement | null>(null);
   
-  // Use search params for handling email verification
+// Use search params for handling email verification
   const searchParams = useSearchParams();
+  
+  // Add a state to track if verification has been processed
+  const [verificationProcessed, setVerificationProcessed] = useState(false);
   
   // Check for verification success or errors on component mount
   useEffect(() => {
     const verificationSuccess = searchParams.get('verificationSuccess');
     const error = searchParams.get('error');
     
-    if (verificationSuccess === 'true') {
-      console.log(`[${CURRENT_TIMESTAMP}] Email verification successful, opening login modal`);
-      // Open login modal with success message
-      openModal('login', { verificationSuccess: true });
-    } else if (error) {
-      // Handle error (can show error toast or modal)
-      console.error(`[${CURRENT_TIMESTAMP}] Authentication error: ${error}`);
+    // Only process once to prevent infinite loop
+    if (!verificationProcessed) {
+      if (verificationSuccess === 'true') {
+        console.log(`[${CURRENT_TIMESTAMP}] Email verification successful, opening login modal`);
+        // Open login modal with success message
+        openModal('login', { verificationSuccess: true });
+        setVerificationProcessed(true);
+      } else if (error) {
+        // Handle error (can show error toast or modal)
+        console.error(`[${CURRENT_TIMESTAMP}] Authentication error: ${error}`);
+        setVerificationProcessed(true);
+      }
     }
-  }, [searchParams, openModal]);
+  }, [searchParams, openModal, verificationProcessed]);
   
   // Toggle mobile menu
   const toggleMobileMenu = (e: React.MouseEvent<HTMLButtonElement>): void => {
