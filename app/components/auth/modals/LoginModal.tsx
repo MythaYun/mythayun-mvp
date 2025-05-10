@@ -1,32 +1,48 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Modal from '../../ui/Modal';
-import LoginForm from '../forms/LoginForm';
+import RegisterForm from '../forms/RegisterForm';
+import RegistrationSuccess from '../RegistrationSuccess';
 import { useModal } from '@/lib/contexts/ModalContext';
 
-export default function LoginModal() {
+export default function RegisterModal() {
   const { closeModal, openModal } = useModal();
+  const [registeredEmail, setRegisteredEmail] = useState<string>('');
+  const [registrationComplete, setRegistrationComplete] = useState<boolean>(false);
 
   const handleSuccess = () => {
+    // Get the email from the form before closing
+    const emailInput = document.getElementById('email') as HTMLInputElement;
+    if (emailInput) {
+      setRegisteredEmail(emailInput.value);
+    }
+    
+    // Show success screen instead of closing the modal
+    setRegistrationComplete(true);
+  };
+
+  const goToLogin = () => {
     closeModal();
-  };
-
-  const goToRegister = () => {
-    openModal('register');
-  };
-
-  const goToForgotPassword = () => {
-    openModal('forgotPassword');
+    setTimeout(() => openModal('login'), 100);
   };
 
   return (
-    <Modal title="Connexion" onClose={closeModal}>
-      <LoginForm 
-        onSuccess={handleSuccess} 
-        onRegisterClick={goToRegister}
-        onForgotPasswordClick={goToForgotPassword}
-      />
+    <Modal 
+      title={registrationComplete ? "Inscription réussie" : "Inscription"} 
+      onClose={closeModal}
+    >
+      {registrationComplete ? (
+        <RegistrationSuccess 
+          email={registeredEmail} 
+          onClose={closeModal} 
+        />
+      ) : (
+        <RegisterForm 
+          onSuccess={handleSuccess} 
+          onLoginClick={goToLogin}
+        />
+      )}
     </Modal>
   );
 }

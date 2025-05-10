@@ -6,18 +6,19 @@ export async function GET(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
     
     if (!token) {
-      return NextResponse.redirect(new URL('/verify-email?error=Token%20manquant', request.url));
+      return NextResponse.redirect(new URL('/?error=missing-token', request.url));
     }
     
     const result = await verifyEmail(token);
     
     if (result.success) {
-      return NextResponse.redirect(new URL('/verify-email?success=true', request.url));
+      // Redirect to landing page and open login modal with success message
+      return NextResponse.redirect(new URL('/?verificationSuccess=true', request.url));
     } else {
-      return NextResponse.redirect(new URL(`/verify-email?error=${encodeURIComponent(result.message)}`, request.url));
+      return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(result.message)}`, request.url));
     }
   } catch (error) {
     console.error('Erreur API vérification email:', error);
-    return NextResponse.redirect(new URL('/verify-email?error=Erreur%20du%20serveur', request.url));
+    return NextResponse.redirect(new URL('/?error=server-error', request.url));
   }
 }

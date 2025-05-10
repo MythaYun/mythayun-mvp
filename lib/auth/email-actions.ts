@@ -5,47 +5,51 @@ import User from '../models/User';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import crypto from 'crypto';
 
-// Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-07 13:20:57";
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-10 02:21:09";
 const CURRENT_USER = "Sdiabate1337";
 
-// Types de réponses
+// Response types
 type EmailActionResult = {
   success: boolean;
   message: string;
 };
 
 /**
- * Demander un email de vérification
+ * Request verification email
  */
 export async function requestVerificationEmail(email: string): Promise<EmailActionResult> {
   try {
+    console.log(`[${CURRENT_TIMESTAMP}] Requesting verification email for: ${email}`);
+    
     await connectToDatabase();
     
-    // Rechercher l'utilisateur
+    // Find the user
     const user = await User.findOne({ email });
     
     if (!user) {
-      // Ne pas révéler si l'email existe pour des raisons de sécurité
+      // Don't reveal if email exists for security reasons
+      console.log(`[${CURRENT_TIMESTAMP}] Email not found: ${email}`);
       return { 
         success: true, 
-        message: 'Si cette adresse email existe dans notre système, un email de vérification sera envoyé.'
+        message: 'If this email address exists in our system, a verification email will be sent.'
       };
     }
     
-    // Si déjà vérifié
+    // If already verified
     if (user.isVerified) {
+      console.log(`[${CURRENT_TIMESTAMP}] Email already verified: ${email}`);
       return { 
         success: false, 
-        message: 'Cette adresse email est déjà vérifiée.'
+        message: 'This email address is already verified.'
       };
     }
     
-    // Générer un token de vérification
+    // Generate verification token
     const verificationToken = user.generateVerificationToken();
     await user.save();
     
-    // Envoyer l'email
+    // Send email
     const emailSent = await sendVerificationEmail(
       user.email,
       user.name,
@@ -53,93 +57,102 @@ export async function requestVerificationEmail(email: string): Promise<EmailActi
     );
     
     if (emailSent) {
+      console.log(`[${CURRENT_TIMESTAMP}] Verification email sent to: ${email}`);
       return { 
         success: true, 
-        message: 'Un email de vérification a été envoyé.'
+        message: 'A verification email has been sent.'
       };
     } else {
+      console.error(`[${CURRENT_TIMESTAMP}] Failed to send verification email to: ${email}`);
       return { 
         success: false, 
-        message: 'Impossible d\'envoyer l\'email de vérification.'
+        message: 'Unable to send verification email.'
       };
     }
   } catch (error) {
-    console.error('Erreur lors de la demande de vérification:', error);
+    console.error(`[${CURRENT_TIMESTAMP}] Error requesting verification:`, error);
     return { 
       success: false, 
-      message: 'Une erreur s\'est produite lors de la demande de vérification.'
+      message: 'An error occurred while processing your verification request.'
     };
   }
 }
 
 /**
- * Vérifier l'adresse email avec un token
+ * Verify email with token
  */
 export async function verifyEmail(token: string): Promise<EmailActionResult> {
   try {
+    console.log(`[${CURRENT_TIMESTAMP}] Verifying email with token: ${token.substring(0, 10)}...`);
+    
     await connectToDatabase();
     
-    // Hash le token pour la comparaison avec celui stocké en base de données
+    // Hash token for comparison with stored token
     const hashedToken = crypto
       .createHash('sha256')
       .update(token)
       .digest('hex');
     
-    // Rechercher l'utilisateur avec ce token
+    // Find user with this token
     const user = await User.findOne({
       verificationToken: hashedToken,
       verificationExpires: { $gt: new Date() }
     });
     
     if (!user) {
+      console.log(`[${CURRENT_TIMESTAMP}] Invalid or expired verification token: ${token.substring(0, 10)}...`);
       return { 
         success: false, 
-        message: 'Le lien de vérification est invalide ou a expiré.'
+        message: 'The verification link is invalid or has expired.'
       };
     }
     
-    // Marquer l'email comme vérifié
+    // Mark email as verified
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationExpires = undefined;
     await user.save();
     
+    console.log(`[${CURRENT_TIMESTAMP}] Email verified successfully for: ${user.email}`);
     return { 
       success: true, 
-      message: 'Votre adresse email a été vérifiée avec succès.'
+      message: 'Your email has been verified successfully.'
     };
   } catch (error) {
-    console.error('Erreur lors de la vérification de l\'email:', error);
+    console.error(`[${CURRENT_TIMESTAMP}] Error verifying email:`, error);
     return { 
       success: false, 
-      message: 'Une erreur s\'est produite lors de la vérification de l\'email.'
+      message: 'An error occurred while verifying your email.'
     };
   }
 }
 
 /**
- * Demander une réinitialisation de mot de passe
+ * Request password reset
  */
 export async function requestPasswordReset(email: string): Promise<EmailActionResult> {
   try {
+    console.log(`[${CURRENT_TIMESTAMP}] Requesting password reset for: ${email}`);
+    
     await connectToDatabase();
     
-    // Rechercher l'utilisateur
+    // Find the user
     const user = await User.findOne({ email });
     
     if (!user) {
-      // Ne pas révéler si l'email existe pour des raisons de sécurité
+      // Don't reveal if email exists for security reasons
+      console.log(`[${CURRENT_TIMESTAMP}] Email not found for password reset: ${email}`);
       return { 
         success: true, 
-        message: 'Si cette adresse email existe dans notre système, un email de réinitialisation sera envoyé.'
+        message: 'If this email address exists in our system, a reset email will be sent.'
       };
     }
     
-    // Générer un token de réinitialisation
+    // Generate reset token
     const resetToken = user.generatePasswordResetToken();
     await user.save();
     
-    // Envoyer l'email
+    // Send email
     const emailSent = await sendPasswordResetEmail(
       user.email,
       user.name,
@@ -147,77 +160,83 @@ export async function requestPasswordReset(email: string): Promise<EmailActionRe
     );
     
     if (emailSent) {
+      console.log(`[${CURRENT_TIMESTAMP}] Password reset email sent to: ${email}`);
       return { 
         success: true, 
-        message: 'Un email de réinitialisation de mot de passe a été envoyé.'
+        message: 'A password reset email has been sent.'
       };
     } else {
+      console.error(`[${CURRENT_TIMESTAMP}] Failed to send password reset email to: ${email}`);
       return { 
         success: false, 
-        message: 'Impossible d\'envoyer l\'email de réinitialisation.'
+        message: 'Unable to send password reset email.'
       };
     }
   } catch (error) {
-    console.error('Erreur lors de la demande de réinitialisation:', error);
+    console.error(`[${CURRENT_TIMESTAMP}] Error requesting password reset:`, error);
     return { 
       success: false, 
-      message: 'Une erreur s\'est produite lors de la demande de réinitialisation.'
+      message: 'An error occurred while processing your password reset request.'
     };
   }
 }
 
 /**
- * Réinitialiser le mot de passe avec un token
+ * Reset password with token
  */
 export async function resetPassword(
   token: string, 
   newPassword: string
 ): Promise<EmailActionResult> {
   try {
+    console.log(`[${CURRENT_TIMESTAMP}] Resetting password with token: ${token.substring(0, 10)}...`);
+    
     await connectToDatabase();
     
-    // Valider le nouveau mot de passe
+    // Validate new password
     if (!newPassword || newPassword.length < 8) {
       return { 
         success: false, 
-        message: 'Le nouveau mot de passe doit contenir au moins 8 caractères.'
+        message: 'New password must be at least 8 characters long.'
       };
     }
     
-    // Hash le token pour la comparaison avec celui stocké en base de données
+    // Hash token for comparison with stored token
     const hashedToken = crypto
       .createHash('sha256')
       .update(token)
       .digest('hex');
     
-    // Rechercher l'utilisateur avec ce token
+    // Find user with this token
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: new Date() }
     });
     
     if (!user) {
+      console.log(`[${CURRENT_TIMESTAMP}] Invalid or expired reset token: ${token.substring(0, 10)}...`);
       return { 
         success: false, 
-        message: 'Le lien de réinitialisation est invalide ou a expiré.'
+        message: 'The password reset link is invalid or has expired.'
       };
     }
     
-    // Mettre à jour le mot de passe
-    user.password = newPassword; // Sera hashé par le middleware mongoose
+    // Update password
+    user.password = newPassword; // Will be hashed by mongoose middleware
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
     
+    console.log(`[${CURRENT_TIMESTAMP}] Password reset successful for: ${user.email}`);
     return { 
       success: true, 
-      message: 'Votre mot de passe a été réinitialisé avec succès.'
+      message: 'Your password has been reset successfully.'
     };
   } catch (error) {
-    console.error('Erreur lors de la réinitialisation du mot de passe:', error);
+    console.error(`[${CURRENT_TIMESTAMP}] Error resetting password:`, error);
     return { 
       success: false, 
-      message: 'Une erreur s\'est produite lors de la réinitialisation du mot de passe.'
+      message: 'An error occurred while resetting your password.'
     };
   }
 }

@@ -2,11 +2,11 @@ import mongoose, { Document, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
-// Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-07 15:31:08";
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-10 02:21:09";
 const CURRENT_USER = "Sdiabate1337";
 
-// Interface utilisateur
+// User interface
 export interface IUser {
   _id?: mongoose.Types.ObjectId | string;
   name: string;
@@ -25,56 +25,56 @@ export interface IUser {
   lockUntil?: Date;
   lastLogin?: Date;
   isActive: boolean;
-  // Supprimé isLocked car il devient une propriété virtuelle
+  // Removed isLocked as it becomes a virtual property
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Méthodes disponibles sur les documents utilisateur
+// Methods available on user documents
 export interface IUserMethods {
   comparePassword(candidatePassword: string): Promise<boolean>;
   generateVerificationToken(): string;
   generatePasswordResetToken(): string;
   incrementLoginAttempts(): Promise<void>;
   resetLoginAttempts(): Promise<void>;
-  isAccountLocked(): boolean; // Méthode pour vérifier si le compte est verrouillé
+  isAccountLocked(): boolean; // Method to check if account is locked
 }
 
-// Méthodes statiques disponibles sur le modèle utilisateur
+// Static methods available on the user model
 export interface UserModel extends Model<IUser, {}, IUserMethods> {
   findByEmail(email: string): Promise<Document<unknown, {}, IUser> & IUser & IUserMethods>;
 }
 
-// Définition du schéma
+// Schema definition
 const UserSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
   {
     name: {
       type: String,
-      required: [true, 'Veuillez fournir votre nom'],
+      required: [true, 'Please provide your name'],
       trim: true,
-      minlength: [3, 'Le nom doit avoir au moins 3 caractères'],
-      maxlength: [50, 'Le nom ne peut pas dépasser 50 caractères'],
+      minlength: [3, 'Name must be at least 3 characters'],
+      maxlength: [50, 'Name cannot exceed 50 characters'],
     },
     email: {
       type: String,
-      required: [true, 'Veuillez fournir une adresse email'],
+      required: [true, 'Please provide an email address'],
       unique: true,
       trim: true,
       lowercase: true,
-      match: [/^\S+@\S+\.\S+$/, 'Veuillez fournir une adresse email valide'],
+      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email address'],
     },
     password: {
       type: String,
-      required: [true, 'Veuillez fournir un mot de passe'],
-      minlength: [8, 'Le mot de passe doit avoir au moins 8 caractères'],
-      select: false, // Ne pas retourner le mot de passe par défaut
+      required: [true, 'Please provide a password'],
+      minlength: [8, 'Password must be at least 8 characters'],
+      select: false, // Don't return password by default
     },
     avatar: {
       type: String,
     },
     bio: {
       type: String,
-      maxlength: [500, 'La bio ne peut pas dépasser 500 caractères'],
+      maxlength: [500, 'Bio cannot exceed 500 characters'],
     },
     favoriteTeams: {
       type: [String],
@@ -89,7 +89,7 @@ const UserSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
       type: Boolean,
       default: false,
     },
-    // Supprimé le champ isLocked du schéma, nous utiliserons uniquement la propriété virtuelle
+    // Removed isLocked field from schema, we'll only use the virtual property
     verificationToken: String,
     verificationExpires: Date,
     resetPasswordToken: String,
@@ -106,29 +106,29 @@ const UserSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
     },
   },
   {
-    timestamps: true, // Ajoute automatiquement createdAt et updatedAt
+    timestamps: true, // Automatically adds createdAt and updatedAt
   }
 );
 
-// Propriété virtuelle pour vérifier si le compte est verrouillé
+// Virtual property to check if account is locked
 UserSchema.virtual('isLocked').get(function() {
   return !!(this.lockUntil && this.lockUntil > new Date());
 });
 
-// Méthode pour vérifier si le compte est verrouillé
+// Method to check if account is locked
 UserSchema.methods.isAccountLocked = function() {
   return !!(this.lockUntil && this.lockUntil > new Date());
 };
 
-// Hash le mot de passe avant la sauvegarde
+// Hash password before saving
 UserSchema.pre('save', async function(next) {
-  // Hash le mot de passe uniquement s'il a été modifié ou est nouveau
+  // Only hash the password if it's modified or new
   if (!this.isModified('password')) return next();
   
   try {
-    // Générer un sel
+    // Generate salt
     const salt = await bcrypt.genSalt(12);
-    // Hash le mot de passe avec le sel
+    // Hash password with salt
     this.password = await bcrypt.hash(this.password, salt);
     return next();
   } catch (err: any) {
@@ -136,12 +136,12 @@ UserSchema.pre('save', async function(next) {
   }
 });
 
-// Méthode pour comparer les mots de passe
+// Method to compare passwords
 UserSchema.methods.comparePassword = async function(candidatePassword: string) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Générer un token de vérification d'email
+// Generate email verification token
 UserSchema.methods.generateVerificationToken = function() {
   const token = crypto.randomBytes(32).toString('hex');
   this.verificationToken = crypto
@@ -149,13 +149,16 @@ UserSchema.methods.generateVerificationToken = function() {
     .update(token)
     .digest('hex');
   
-  // Token expire dans 24 heures
+  // Token expires in 24 hours
   this.verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  
+  console.log(`[${CURRENT_TIMESTAMP}] Generated verification token for: ${this.email}`);
+  console.log(`[${CURRENT_TIMESTAMP}] Verification token expires: ${this.verificationExpires}`);
   
   return token;
 };
 
-// Générer un token de réinitialisation de mot de passe
+// Generate password reset token
 UserSchema.methods.generatePasswordResetToken = function() {
   const token = crypto.randomBytes(32).toString('hex');
   this.resetPasswordToken = crypto
@@ -163,34 +166,35 @@ UserSchema.methods.generatePasswordResetToken = function() {
     .update(token)
     .digest('hex');
   
-  // Token expire dans 1 heure
+  // Token expires in 1 hour
   this.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
   
   return token;
 };
 
-// Incrémenter les tentatives de connexion
+// Increment login attempts
 UserSchema.methods.incrementLoginAttempts = async function() {
-  // Si le verrouillage précédent a expiré, redémarrer à 1
+  // If previous lock has expired, restart at 1
   if (this.lockUntil && this.lockUntil < new Date()) {
     await this.updateOne({
       $set: { loginAttempts: 1 },
       $unset: { lockUntil: 1 }
     });
   } else {
-    // Sinon, incrémenter les tentatives de connexion
+    // Otherwise, increment login attempts
     const updates = { $inc: { loginAttempts: 1 } } as any;
     
-    // Verrouiller le compte si on a atteint le max de tentatives (5)
+    // Lock account if max attempts reached (5)
     if (this.loginAttempts + 1 >= 5 && !this.isAccountLocked()) {
-      updates.$set = { lockUntil: new Date(Date.now() + 60 * 60 * 1000) }; // 1 heure
+      updates.$set = { lockUntil: new Date(Date.now() + 60 * 60 * 1000) }; // 1 hour
+      console.log(`[${CURRENT_TIMESTAMP}] Account locked for: ${this.email} until ${new Date(Date.now() + 60 * 60 * 1000)}`);
     }
     
     await this.updateOne(updates);
   }
 };
 
-// Réinitialiser les tentatives de connexion
+// Reset login attempts
 UserSchema.methods.resetLoginAttempts = async function() {
   await this.updateOne({
     $set: { loginAttempts: 0 },
@@ -198,12 +202,23 @@ UserSchema.methods.resetLoginAttempts = async function() {
   });
 };
 
-// Méthode statique pour trouver un utilisateur par email
+// Static method to find user by email
 UserSchema.static('findByEmail', function findByEmail(email: string) {
   return this.findOne({ email });
 });
 
-// Créer le modèle
+// Make sure ObjectId is serialized to string when converting to JSON
+UserSchema.set('toJSON', {
+  transform: function (doc, ret) {
+    if (ret._id) {
+      ret._id = ret._id.toString();
+    }
+    delete ret.password;
+    return ret;
+  }
+});
+
+// Create the model
 const User = mongoose.models.User || mongoose.model<IUser, UserModel>('User', UserSchema);
 
 export default User;

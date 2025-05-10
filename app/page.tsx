@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FiUser, FiLogOut, FiHome, FiClock, FiMap, FiVideo, FiInfo, FiTrendingUp, FiUsers, FiMenu } from "react-icons/fi";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useModal } from "@/lib/contexts/ModalContext";
+
 
 // Informations système actuelles
 const CURRENT_TIMESTAMP = "2025-05-07 17:59:28";
@@ -14,20 +16,69 @@ export default function Home() {
   // Utiliser le contexte d'authentification
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   
-  // Utiliser le contexte des modaux
+  // Use modal context
   const { openModal } = useModal();
   
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Refs pour la gestion des clics
+  // Refs for click management
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuContentRef = useRef<HTMLDivElement | null>(null);
+  
+  // Use search params for handling email verification
+  const searchParams = useSearchParams();
+  
+  // Check for verification success or errors on component mount
+  useEffect(() => {
+    const verificationSuccess = searchParams.get('verificationSuccess');
+    const error = searchParams.get('error');
+    
+    if (verificationSuccess === 'true') {
+      console.log(`[${CURRENT_TIMESTAMP}] Email verification successful, opening login modal`);
+      // Open login modal with success message
+      openModal('login', { verificationSuccess: true });
+    } else if (error) {
+      // Handle error (can show error toast or modal)
+      console.error(`[${CURRENT_TIMESTAMP}] Authentication error: ${error}`);
+    }
+  }, [searchParams, openModal]);
   
   // Toggle mobile menu
   const toggleMobileMenu = (e: React.MouseEvent<HTMLButtonElement>): void => {
     e.stopPropagation();
     setMobileMenuOpen(!mobileMenuOpen);
   };
+  
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    
+    const handleOutsideClick = (event: MouseEvent): void => {
+      if (!menuButtonRef.current || !menuContentRef.current) return;
+      
+      // TypeScript safety check: ensure target is an Element
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      
+      // Check if click was outside menu and button
+      if (
+        !menuButtonRef.current.contains(target) && 
+        !menuContentRef.current.contains(target)
+      ) {
+        setMobileMenuOpen(false);
+      }
+    };
+    
+    // Add event listener with delay to prevent immediate closure
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleOutsideClick);
+    };
+  }, [mobileMenuOpen]);
   
   // Close mobile menu when clicking outside
   useEffect(() => {

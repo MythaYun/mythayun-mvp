@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FiAlertCircle, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiAlertCircle, FiEye, FiEyeOff, FiCheck } from 'react-icons/fi';
 import { loginAction } from '@/lib/auth/auth-actions';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
@@ -9,19 +9,33 @@ interface LoginFormProps {
   onSuccess: () => void;
   onRegisterClick: () => void;
   onForgotPasswordClick: () => void;
+  verificationSuccess?: boolean;
 }
 
 export default function LoginForm({ 
   onSuccess, 
   onRegisterClick, 
-  onForgotPasswordClick 
+  onForgotPasswordClick,
+  verificationSuccess = false 
 }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const { updateUser } = useAuth();
-
-  async function handleSubmit(formData: FormData) {
+  
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    
+    // Validation côté client
+    if (!email || !password) {
+      setError('Email et mot de passe requis');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     
@@ -32,7 +46,7 @@ export default function LoginForm({
         updateUser(result.user);
         onSuccess();
       } else {
-        setError(result.message || 'Échec de la connexion');
+        setError(result.message || 'Identifiants invalides');
       }
     } catch (err) {
       setError('Une erreur inattendue s\'est produite');
@@ -44,6 +58,23 @@ export default function LoginForm({
   
   return (
     <>
+      {/* Email verification success message */}
+      {verificationSuccess && (
+        <div className="rounded-md bg-green-900/50 p-4 border-l-4 border-green-500 mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <FiCheck className="h-5 w-5 text-green-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-green-300">
+                Votre adresse email a été vérifiée avec succès. Vous pouvez maintenant vous connecter.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Error message */}
       {error && (
         <div className="rounded-md bg-red-900/50 p-4 border-l-4 border-red-500 mb-6">
           <div className="flex">
@@ -57,7 +88,7 @@ export default function LoginForm({
         </div>
       )}
       
-      <form className="space-y-6" action={handleSubmit}>
+      <form className="space-y-6" onSubmit={handleSubmit}>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-slate-300">
             Adresse email
@@ -108,13 +139,13 @@ export default function LoginForm({
               id="remember-me"
               name="remember-me"
               type="checkbox"
-              className="h-4 w-4 rounded focus:ring-indigo-500 bg-slate-700 border-slate-500"
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-600 bg-slate-700 rounded"
             />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-300">
+            <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-400">
               Se souvenir de moi
             </label>
           </div>
-
+          
           <button
             type="button"
             onClick={onForgotPasswordClick}
