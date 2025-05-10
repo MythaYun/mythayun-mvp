@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FiAlertCircle, FiEye, FiEyeOff, FiCheck } from 'react-icons/fi';
 import { loginAction } from '@/lib/auth/auth-actions';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import SocialLoginButtons from '../SocialLoginButtons';
 
 interface LoginFormProps {
   onSuccess: () => void;
@@ -18,26 +19,51 @@ export default function LoginForm({
   onForgotPasswordClick,
   verificationSuccess = false 
 }: LoginFormProps) {
+  // State management
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [staySignedIn, setStaySignedIn] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [email, setEmail] = useState('');
   const { updateUser } = useAuth();
+  
+  // Success notification timeout
+  useEffect(() => {
+    if (verificationSuccess) {
+      const timer = setTimeout(() => {
+        const emailInput = document.getElementById('email') as HTMLInputElement;
+        if (emailInput) {
+          emailInput.focus();
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [verificationSuccess]);
   
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
+    const emailValue = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    // Validation côté client
-    if (!email || !password) {
+    // Store email for potential resend verification
+    setEmail(emailValue);
+    
+    // Client-side validation
+    if (!emailValue || !password) {
       setError('Email et mot de passe requis');
       return;
     }
     
     setIsLoading(true);
     setError(null);
+    setNeedsVerification(false);
+    
+    // Append stay signed in preference
+    formData.append('staySignedIn', staySignedIn.toString());
     
     try {
       const result = await loginAction(formData);
@@ -45,12 +71,44 @@ export default function LoginForm({
       if (result.success) {
         updateUser(result.user);
         onSuccess();
+      } else if (result.needsVerification) {
+        setNeedsVerification(true);
+        setError(result.message || 'Veuillez vérifier votre email avant de vous connecter');
       } else {
         setError(result.message || 'Identifiants invalides');
       }
     } catch (err) {
       setError('Une erreur inattendue s\'est produite');
       console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+  
+  async function handleResendVerification() {
+    if (!email) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const result = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      }).then(r => r.json());
+      
+      if (result.success) {
+        setError(null);
+        setNeedsVerification(false);
+        alert('Un email de vérification a été envoyé à votre adresse email.');
+      } else {
+        setError(result.message || 'Erreur lors de l\'envoi de l\'email de vérification');
+      }
+    } catch (err) {
+      setError('Une erreur est survenue lors de l\'envoi de l\'email');
     } finally {
       setIsLoading(false);
     }
@@ -83,6 +141,17 @@ export default function LoginForm({
             </div>
             <div className="ml-3">
               <p className="text-sm text-red-300">{error}</p>
+              
+              {/* Resend verification option */}
+              {needsVerification && (
+                <button 
+                  onClick={handleResendVerification} 
+                  className="mt-2 text-sm font-medium text-indigo-400 hover:text-indigo-300 transition"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Envoi en cours...' : 'Renvoyer l\'email de vérification'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -136,13 +205,15 @@ export default function LoginForm({
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <input
-              id="remember-me"
-              name="remember-me"
+              id="stay-signed-in"
+              name="staySignedIn"
               type="checkbox"
+              checked={staySignedIn}
+              onChange={(e) => setStaySignedIn(e.target.checked)}
               className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-600 bg-slate-700 rounded"
             />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-400">
-              Se souvenir de moi
+            <label htmlFor="stay-signed-in" className="ml-2 block text-sm text-slate-400">
+              Rester connecté pendant 30 jours
             </label>
           </div>
           
@@ -165,6 +236,9 @@ export default function LoginForm({
           </button>
         </div>
       </form>
+      
+      {/* Social login options */}
+      <SocialLoginButtons />
       
       <div className="mt-6 text-center">
         <p className="text-sm text-slate-300">

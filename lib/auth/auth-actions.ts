@@ -6,78 +6,74 @@ import User, { IUser } from '../models/User';
 import { jwtUtils } from './jwt';
 import { sessionUtils } from './session';
 import mongoose from 'mongoose';
+import { sendVerificationEmail } from '../utils/email';
 
-// Current system information
-const CURRENT_TIMESTAMP = "2025-05-09 16:45:45"; // Updated to current timestamp
+// Informations système actuelles
+const CURRENT_TIMESTAMP = "2025-05-07 12:35:03";
 const CURRENT_USER = "Sdiabate1337";
 
-// Types for action responses
+// Types de réponses pour les actions
 type AuthResult = {
   success: boolean;
   message?: string;
-  user?: Partial<IUser> & { _id: string }; // Ensure _id is always a string
+  user?: Partial<IUser>;
 };
 
 /**
- * Login action
+ * Action de connexion
  */
 export async function loginAction(formData: FormData): Promise<AuthResult> {
-  console.log('Starting login process...');
   try {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    // Simple validation
+    // Validation simple
     if (!email || !password) {
       return { success: false, message: 'Email et mot de passe requis' };
     }
     
     await connectToDatabase();
-    console.log('Connected to database successfully');
     
-    // Find user and include password for verification
+    // Rechercher l'utilisateur et inclure le mot de passe pour la vérification
     const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
       return { success: false, message: 'Identifiants invalides' };
     }
     
-    // Check if account is locked
+    // Vérifier si le compte est verrouillé
     if (user.isAccountLocked()) {
       return { success: false, message: 'Compte temporairement verrouillé. Veuillez réessayer plus tard' };
     }
     
-    // Verify password
+    // Vérifier le mot de passe
     const isMatch = await user.comparePassword(password);
     
     if (!isMatch) {
-      // Increment login attempts
+      // Incrémenter les tentatives de connexion
       await user.incrementLoginAttempts();
       return { success: false, message: 'Identifiants invalides' };
     }
     
-    // Reset login attempts
+    // Réinitialiser les tentatives de connexion
     await user.resetLoginAttempts();
     
-    // Update last login date
+    // Mettre à jour la date de dernière connexion
     user.lastLogin = new Date(CURRENT_TIMESTAMP);
     await user.save();
     
-    // Generate tokens
+    // Générer les tokens
     const accessToken = jwtUtils.generateAccessToken(user);
     const refreshToken = jwtUtils.generateRefreshToken(user);
     
-    // Set cookies
+    // Définir les cookies
     await jwtUtils.setAuthCookies(accessToken, refreshToken);
     
-    console.log('Login successful for user:', user.email);
-    
-    // Return the user (without sensitive data)
-    // FIX: Convert ObjectId to string
+    // Retourner l'utilisateur (sans données sensibles)
     return {
       success: true,
       user: {
-        _id: user._id.toString(), // Convert to string to avoid serialization issues
+        _id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
@@ -87,39 +83,34 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
       }
     };
   } catch (error) {
-    console.error('Login error details:', error);
+    console.error('Erreur de connexion:', error);
     return { success: false, message: 'Une erreur s\'est produite lors de la connexion' };
   }
 }
 
 /**
- * Registration action
+ * Action d'inscription
  */
 export async function registerAction(formData: FormData): Promise<AuthResult> {
-  console.log('Starting registration process...');
   try {
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    console.log('Register data:', { name, email, passwordLength: password?.length });
-    
-    // Simple validation
+    // Validation simple
     if (!name || !email || !password) {
       return { success: false, message: 'Tous les champs sont obligatoires' };
     }
     
     await connectToDatabase();
-    console.log('Connected to database successfully');
     
-    // Check if user already exists
+    // Vérifier si l'utilisateur existe déjà
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log('User already exists:', email);
       return { success: false, message: 'Cet email est déjà utilisé' };
     }
     
-    // Create a new user
+    // Créer un nouvel utilisateur
     const user = new User({
       name,
       email,
@@ -133,25 +124,35 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       loginAttempts: 0
     });
     
-    await user.save();
-    console.log('New user saved:', email);
+    // Generate verification token
+    const verificationToken = user.generateVerificationToken();
     
-    // Generate tokens
+    await user.save();
+    
+    // ADDED: Send verification email
+    const emailSent = await sendVerificationEmail(
+      user.email,
+      user.name,
+      verificationToken
+    );
+    
+    console.log(`[${CURRENT_TIMESTAMP}] Verification email sent: ${emailSent ? 'success' : 'failed'}`);
+    
+    // Générer les tokens
     const accessToken = jwtUtils.generateAccessToken(user);
     const refreshToken = jwtUtils.generateRefreshToken(user);
     
-    // Set cookies
+    // Définir les cookies
     await jwtUtils.setAuthCookies(accessToken, refreshToken);
     
-    console.log('Registration successful for user:', email);
-    
-    // Return the user (without sensitive data)
-    // FIX: Convert ObjectId to string
+    // Retourner l'utilisateur (sans données sensibles)
     return {
       success: true,
-      message: 'Inscription réussie',
+      message: emailSent 
+        ? 'Inscription réussie. Veuillez vérifier votre boîte email.' 
+        : 'Inscription réussie. Email de vérification non envoyé.',
       user: {
-        _id: user._id.toString(), // Convert to string to avoid serialization issues
+        _id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
@@ -159,28 +160,26 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       }
     };
   } catch (error) {
-    console.error('Registration error details:', {
-  
-    });
+    console.error(`[${CURRENT_TIMESTAMP}] Erreur d'inscription:`, error);
     return { success: false, message: 'Une erreur s\'est produite lors de l\'inscription' };
   }
 }
 
 /**
- * Logout action
+ * Action de déconnexion
  */
 export async function logoutAction(): Promise<AuthResult> {
   try {
     await jwtUtils.clearAuthCookies();
     return { success: true, message: 'Déconnexion réussie' };
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('Erreur de déconnexion:', error);
     return { success: false, message: 'Erreur lors de la déconnexion' };
   }
 }
 
 /**
- * Protect a route (for server components)
+ * Protéger une route (pour les composants serveur)
  */
 export async function requireAuth(requiredRole?: string): Promise<IUser> {
   try {
@@ -190,15 +189,14 @@ export async function requireAuth(requiredRole?: string): Promise<IUser> {
       redirect('/login?message=Veuillez vous connecter pour continuer');
     }
     
-    // If a specific role is required, verify it
+    // Si un rôle spécifique est requis, le vérifier
     if (requiredRole && user.role !== requiredRole) {
       redirect('/dashboard?message=Vous n\'avez pas les autorisations nécessaires');
     }
     
-    // No need to convert to string here as it's not being sent to client components
     return user;
   } catch (error) {
-    console.error('Authentication verification error:', error);
+    console.error('Erreur de vérification d\'authentification:', error);
     redirect('/login?message=Erreur d\'authentification');
   }
 }
