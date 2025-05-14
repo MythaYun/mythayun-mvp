@@ -71,7 +71,7 @@ export default function Dashboard() {
         return <SettingsTab />;
       case 'dashboard':
       default:
-        return <DashboardTab user={user} />;
+        return <DashboardTab />;
     }
   };
 
@@ -340,7 +340,7 @@ export default function Dashboard() {
 }
 
 // Tab component for Dashboard content
-const DashboardTab = ({ user }) => (
+const DashboardTab = ({ }) => (
   <div className="space-y-6">
     <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
       <h2 className="text-xl font-bold mb-5 text-white">Tableaux de bord personnels</h2>

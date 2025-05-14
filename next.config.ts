@@ -1,6 +1,5 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   eslint: {
@@ -9,20 +8,19 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Remove any experimental features that might cause issues
   experimental: {
-    // Existing config...
+    // Keep only what's absolutely necessary
     serverActions: {
       allowedOrigins: [
         'localhost:3000',
-        'studious-zebra-x5xqvvw5rwg53w7g-3000.app.github.dev',
-        '.app.github.dev',
         '.vercel.app',
-        'mythayun-mvp-staging.vercel.app',
-        '*.vercel.app'
+        'mythayun-staging.vercel.app',
       ],
     },
-    // suppressHydrationWarnings is not a valid option in experimental config and has been removed
   },
+  // Prevent any Pages Router behavior
+  useFileSystemPublicRoutes: true,
 };
 
-export default nextConfig;
+module.exports = nextConfig;

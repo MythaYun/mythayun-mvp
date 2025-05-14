@@ -1,9 +1,12 @@
 {
   "version": 2,
-  "buildCommand": "next build || exit 0",
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": ".next",
   "framework": "nextjs",
-  "ignoreCommand": "echo 'Ignoring check'",
+  "installCommand": "npm install",
+  "regions": ["iad1"],
   "env": {
-    "NEXT_IGNORE_BUILD_ERRORS": "true"
+    "NODE_ENV": "production",
+    "NEXT_TELEMETRY_DISABLED": "1"
   }
 }
