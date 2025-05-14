@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Base URL for redirections
     const baseUrl = process.env.CODESPACE_NAME 
       ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
-      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      : process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000';
     
     // Check if there's an error or if code is missing
     if (error || !code) {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     
     const baseUrl = process.env.CODESPACE_NAME 
       ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
-      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      : process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000';
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.redirect(`${baseUrl}/?error=google_auth_failed&reason=${encodeURIComponent(errorMessage)}`);

@@ -119,49 +119,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Login function with dashboard redirection
-  const login = useCallback(async (email: string, password: string): Promise<LoginResponse> => {
-    setIsLoading(true);
-    setAuthError(null);
+const login = async (email: string, password: string) => {
+  try {
+    // Create FormData instead of using JSON
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('password', password);
     
-    try {
-      console.log(`[${CURRENT_TIMESTAMP}] Attempting login for: ${email}`);
-      
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        const errorMessage = data.message || 'Login failed';
-        console.error(`[${CURRENT_TIMESTAMP}] Login error:`, errorMessage);
-        setAuthError(errorMessage);
-        return { success: false, error: errorMessage };
-      }
-      
-      // Update user state on successful login
-      setUser(data.user);
-      console.log(`[${CURRENT_TIMESTAMP}] Login successful for: ${email}`);
-      
-      // Set redirect pending flag
-      redirectPending.current = true;
-      
-      // Redirect to dashboard after successful login
-      router.push('/dashboard');
-      
-      return { success: true, user: data.user };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error(`[${CURRENT_TIMESTAMP}] Login exception:`, errorMessage);
-      setAuthError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
+    console.log(`[${new Date().toISOString()}] Attempting login for: ${email}`);
+    
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      // Don't set Content-Type header - browser will set it automatically with boundary
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Login failed: ${response.status}`);
     }
-  }, [router]);
+    
+    const data = await response.json();
+    
+    // Properly handle the response
+    if (data.success) {
+      // Update auth state - only set the user, isAuthenticated is derived from user
+      setUser(data.user);
+      
+      // For debugging
+      console.log(`[${new Date().toISOString()}] Login successful for: ${email}`);
+      
+      return { success: true };
+    } else {
+      console.log(`[${new Date().toISOString()}] Login failed: ${data.message}`);
+      setAuthError(data.message || 'Authentication failed');
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    setAuthError('Server error during login');
+    return { success: false, error: 'Server error during login' };
+  }
+};
 
   // Register function
   const register = useCallback(async (data: RegisterData): Promise<LoginResponse> => {
