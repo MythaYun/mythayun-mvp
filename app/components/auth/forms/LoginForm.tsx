@@ -1,256 +1,236 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FiAlertCircle, FiEye, FiEyeOff, FiCheck } from 'react-icons/fi';
-import { loginAction } from '@/lib/auth/auth-actions';
+import React, { useState, useEffect } from 'react';
+import { FaGoogle, FaFacebook, FaEnvelope, FaLock } from 'react-icons/fa';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import SocialLoginButtons from '../SocialLoginButtons';
 
 interface LoginFormProps {
-  onSuccess: () => void;
+  onSuccess?: () => void;
   onRegisterClick: () => void;
   onForgotPasswordClick: () => void;
   verificationSuccess?: boolean;
+  passwordReset?: boolean;
 }
 
-export default function LoginForm({ 
-  onSuccess, 
-  onRegisterClick, 
+export default function LoginForm({
+  onSuccess,
+  onRegisterClick,
   onForgotPasswordClick,
-  verificationSuccess = false 
+  verificationSuccess = false,
+  passwordReset = false,
 }: LoginFormProps) {
   // State management
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [staySignedIn, setStaySignedIn] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
   const [email, setEmail] = useState('');
-  const { updateUser } = useAuth();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState<string | null>(null);
   
-  // Success notification timeout
+  // Authentication context
+  const { login, authError, clearAuthError } = useAuth();
+  
+  // Clear previous auth errors when component mounts
   useEffect(() => {
+    clearAuthError();
+    
+    // Show success message if email was verified or password was reset
     if (verificationSuccess) {
-      const timer = setTimeout(() => {
-        const emailInput = document.getElementById('email') as HTMLInputElement;
-        if (emailInput) {
-          emailInput.focus();
-        }
-      }, 1000);
-      
+      setShowSuccess('Votre adresse email a été vérifiée avec succès. Vous pouvez maintenant vous connecter.');
+    } else if (passwordReset) {
+      setShowSuccess('Votre mot de passe a été réinitialisé avec succès. Veuillez vous connecter avec votre nouveau mot de passe.');
+    }
+    
+    // Clear success message after 5 seconds
+    if (showSuccess) {
+      const timer = setTimeout(() => setShowSuccess(null), 5000);
       return () => clearTimeout(timer);
     }
-  }, [verificationSuccess]);
-  
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  }, [clearAuthError, verificationSuccess, passwordReset, showSuccess]);
+
+  // Form submission handler
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const formData = new FormData(e.currentTarget);
-    const emailValue = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    
-    // Store email for potential resend verification
-    setEmail(emailValue);
-    
-    // Client-side validation
-    if (!emailValue || !password) {
-      setError('Email et mot de passe requis');
+    // Basic validation
+    if (!email || !password) {
+      setError('Veuillez remplir tous les champs');
       return;
     }
     
-    setIsLoading(true);
-    setError(null);
-    setNeedsVerification(false);
-    
-    // Append stay signed in preference
-    formData.append('staySignedIn', staySignedIn.toString());
-    
     try {
-      const result = await loginAction(formData);
+      setIsSubmitting(true);
+      setError('');
       
-      if (result.success) {
-        updateUser(result.user);
+      // Attempt login through AuthContext
+      const result = await login(email, password);
+      
+      // Handle login failure
+      if (!result.success) {
+        setError(result.error || 'Échec de la connexion');
+        return;
+      }
+      
+      // Handle success - no need to redirect as AuthContext already does it
+      if (onSuccess) {
         onSuccess();
-      } else if (result.needsVerification) {
-        setNeedsVerification(true);
-        setError(result.message || 'Veuillez vérifier votre email avant de vous connecter');
-      } else {
-        setError(result.message || 'Identifiants invalides');
       }
-    } catch (err) {
-      setError('Une erreur inattendue s\'est produite');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-  
-  async function handleResendVerification() {
-    if (!email) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const result = await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-      }).then(r => r.json());
       
-      if (result.success) {
-        setError(null);
-        setNeedsVerification(false);
-        alert('Un email de vérification a été envoyé à votre adresse email.');
-      } else {
-        setError(result.message || 'Erreur lors de l\'envoi de l\'email de vérification');
-      }
-    } catch (err) {
-      setError('Une erreur est survenue lors de l\'envoi de l\'email');
+    } catch (error) {
+      setError('Une erreur est survenue. Veuillez réessayer.');
+      console.error('Login error:', error);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
-  }
+  };
+
+  // Social login handlers
+  const handleGoogleLogin = () => {
+    window.location.href = '/api/auth/google';
+  };
   
+  const handleFacebookLogin = () => {
+    window.location.href = '/api/auth/facebook';
+  };
+
   return (
-    <>
-      {/* Email verification success message */}
-      {verificationSuccess && (
-        <div className="rounded-md bg-green-900/50 p-4 border-l-4 border-green-500 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <FiCheck className="h-5 w-5 text-green-400" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-green-300">
-                Votre adresse email a été vérifiée avec succès. Vous pouvez maintenant vous connecter.
-              </p>
-            </div>
-          </div>
+    <div className="w-full">
+      {/* Success message if applicable */}
+      {showSuccess && (
+        <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-800 text-sm">
+          {showSuccess}
         </div>
       )}
       
-      {/* Error message */}
-      {error && (
-        <div className="rounded-md bg-red-900/50 p-4 border-l-4 border-red-500 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <FiAlertCircle className="h-5 w-5 text-red-400" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-300">{error}</p>
-              
-              {/* Resend verification option */}
-              {needsVerification && (
-                <button 
-                  onClick={handleResendVerification} 
-                  className="mt-2 text-sm font-medium text-indigo-400 hover:text-indigo-300 transition"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Envoi en cours...' : 'Renvoyer l\'email de vérification'}
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Error message if applicable */}
+      {(error || authError) && (
+        <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-800 text-sm">
+          {error || authError}
         </div>
       )}
-      
-      <form className="space-y-6" onSubmit={handleSubmit}>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Email field */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-300">
+          <label htmlFor="email" className="block mb-2 text-sm font-medium text-slate-300">
             Adresse email
           </label>
-          <div className="mt-1">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <FaEnvelope />
+            </div>
             <input
-              id="email"
-              name="email"
               type="email"
-              autoComplete="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-white w-full pl-10 pr-3 py-2.5 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="votre@email.com"
               required
-              className="block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-              placeholder="vous@exemple.com"
             />
           </div>
         </div>
         
+        {/* Password field */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-slate-300">
-            Mot de passe
-          </label>
-          <div className="mt-1 relative">
-            <input
-              id="password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              autoComplete="current-password"
-              required
-              className="block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-              placeholder="••••••••"
-            />
+          <div className="flex justify-between items-center mb-2">
+            <label htmlFor="password" className="text-sm font-medium text-slate-300">
+              Mot de passe
+            </label>
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              onClick={onForgotPasswordClick}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
             >
-              {showPassword ? 
-                <FiEyeOff className="h-5 w-5 text-slate-400" /> : 
-                <FiEye className="h-5 w-5 text-slate-400" />
-              }
+              Mot de passe oublié?
             </button>
           </div>
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <FaLock />
+            </div>
             <input
-              id="stay-signed-in"
-              name="staySignedIn"
-              type="checkbox"
-              checked={staySignedIn}
-              onChange={(e) => setStaySignedIn(e.target.checked)}
-              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-600 bg-slate-700 rounded"
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-white w-full pl-10 pr-3 py-2.5 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="••••••••"
+              required
             />
-            <label htmlFor="stay-signed-in" className="ml-2 block text-sm text-slate-400">
-              Rester connecté pendant 30 jours
-            </label>
           </div>
-          
-          <button
-            type="button"
-            onClick={onForgotPasswordClick}
-            className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition"
-          >
-            Mot de passe oublié?
-          </button>
         </div>
         
-        <div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 disabled:opacity-75 transition"
-          >
-            {isLoading ? 'Connexion en cours...' : 'Se connecter'}
-          </button>
-        </div>
+        {/* Login button */}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={`w-full py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors ${
+            isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSubmitting ? (
+            <div className="flex items-center justify-center">
+              <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Connexion...
+            </div>
+          ) : (
+            'Se connecter'
+          )}
+        </button>
       </form>
       
-      {/* Social login options */}
-      <SocialLoginButtons />
-      
-      <div className="mt-6 text-center">
-        <p className="text-sm text-slate-300">
-          Pas encore de compte?{' '}
-          <button 
-            onClick={onRegisterClick}
-            className="font-medium text-indigo-400 hover:text-indigo-300 transition"
-          >
-            S'inscrire
-          </button>
-        </p>
+      {/* Divider */}
+      <div className="my-5 flex items-center">
+        <div className="flex-1 h-px bg-slate-700"></div>
+        <span className="px-3 text-sm text-slate-400">ou</span>
+        <div className="flex-1 h-px bg-slate-700"></div>
       </div>
-    </>
+      
+      {/* Social login buttons */}
+      <div className="space-y-3">
+        <button
+          onClick={handleGoogleLogin}
+          type="button"
+          className="w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-colors bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+        >
+          <FaGoogle className="text-red-500" />
+          <span>Continuer avec Google</span>
+        </button>
+        
+        <button
+          onClick={handleFacebookLogin}
+          type="button"
+          className="w-full flex items-center justify-center gap-2 p-2.5 rounded-lg transition-colors bg-[#1877F2] text-white hover:bg-[#0e6bde]"
+        >
+          <FaFacebook />
+          <span>Continuer avec Facebook</span>
+        </button>
+      </div>
+      
+      {/* Register link */}
+      <div className="mt-5 text-center text-sm text-slate-400">
+        Pas encore de compte?{' '}
+        <button
+          onClick={onRegisterClick}
+          className="text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+        >
+          S'inscrire
+        </button>
+      </div>
+    </div>
   );
 }

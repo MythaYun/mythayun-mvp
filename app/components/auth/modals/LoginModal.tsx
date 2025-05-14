@@ -1,48 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Modal from '../../ui/Modal';
-import RegisterForm from '../forms/RegisterForm';
-import RegistrationSuccess from '../RegistrationSuccess';
+import LoginForm from '../forms/LoginForm';
 import { useModal } from '@/lib/contexts/ModalContext';
 
-export default function RegisterModal() {
+interface LoginModalProps {
+  verificationSuccess?: boolean;
+  passwordReset?: boolean;
+}
+
+export default function LoginModal({ 
+  verificationSuccess = false,
+  passwordReset = false
+}: LoginModalProps) {
   const { closeModal, openModal } = useModal();
-  const [registeredEmail, setRegisteredEmail] = useState<string>('');
-  const [registrationComplete, setRegistrationComplete] = useState<boolean>(false);
-
-  const handleSuccess = () => {
-    // Get the email from the form before closing
-    const emailInput = document.getElementById('email') as HTMLInputElement;
-    if (emailInput) {
-      setRegisteredEmail(emailInput.value);
-    }
-    
-    // Show success screen instead of closing the modal
-    setRegistrationComplete(true);
-  };
-
-  const goToLogin = () => {
+  
+  // Current timestamp for logging
+  const CURRENT_TIMESTAMP = "2025-05-14 00:04:49";
+  
+  const handleLoginSuccess = () => {
+    console.log(`[${CURRENT_TIMESTAMP}] Login successful, modal will close automatically`);
     closeModal();
-    setTimeout(() => openModal('login'), 100);
+    // No need to redirect here, the AuthContext handles it
+  };
+  
+  const goToRegister = () => {
+    closeModal();
+    setTimeout(() => openModal('register'), 100);
+  };
+  
+  const goToForgotPassword = () => {
+    closeModal();
+    setTimeout(() => openModal('forgotPassword'), 100);
   };
 
   return (
-    <Modal 
-      title={registrationComplete ? "Inscription réussie" : "Inscription"} 
-      onClose={closeModal}
-    >
-      {registrationComplete ? (
-        <RegistrationSuccess 
-          email={registeredEmail} 
-          onClose={closeModal} 
-        />
-      ) : (
-        <RegisterForm 
-          onSuccess={handleSuccess} 
-          onLoginClick={goToLogin}
-        />
-      )}
+    <Modal title="Connexion" onClose={closeModal}>
+      <LoginForm
+        onSuccess={handleLoginSuccess}
+        onRegisterClick={goToRegister}
+        onForgotPasswordClick={goToForgotPassword}
+        verificationSuccess={verificationSuccess}
+        passwordReset={passwordReset}
+      />
     </Modal>
   );
 }

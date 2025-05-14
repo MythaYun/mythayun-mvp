@@ -173,7 +173,7 @@ export async function sendPasswordResetEmail(
   
   try {
     const baseUrl = getBaseUrl();
-    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+    const resetUrl = `${baseUrl}/api/auth/reset-password?token=${token}`;
     
     // Template HTML de base pour l'email de réinitialisation
     const html = `

@@ -17,6 +17,7 @@ type AuthResult = {
   success: boolean;
   message?: string;
   user?: Partial<IUser>;
+  needsVerification?: boolean;
 };
 
 /**
@@ -26,49 +27,53 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
   try {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
-    
+
     // Validation simple
     if (!email || !password) {
       return { success: false, message: 'Email et mot de passe requis' };
     }
-    
+
     await connectToDatabase();
-    
+
     // Rechercher l'utilisateur et inclure le mot de passe pour la vérification
     const user = await User.findOne({ email }).select('+password');
-    
     if (!user) {
+      // Délai pour limiter le brute-force
+      await new Promise((r) => setTimeout(r, 1000));
       return { success: false, message: 'Identifiants invalides' };
     }
-    
-    // Vérifier si le compte est verrouillé
-    if (user.isAccountLocked()) {
-      return { success: false, message: 'Compte temporairement verrouillé. Veuillez réessayer plus tard' };
+
+    // Vérifier si le compte est vérifié
+    if (!user.isVerified) {
+      return { success: false, message: 'Veuillez vérifier votre email avant de vous connecter.' };
     }
-    
+
+    // Vérifier si le compte est verrouillé
+    if (user.isAccountLocked && user.isAccountLocked()) {
+      return { success: false, message: 'Compte temporairement verrouillé. Veuillez réessayer plus tard.' };
+    }
+
     // Vérifier le mot de passe
     const isMatch = await user.comparePassword(password);
-    
     if (!isMatch) {
       // Incrémenter les tentatives de connexion
-      await user.incrementLoginAttempts();
+      if (user.incrementLoginAttempts) {
+        await user.incrementLoginAttempts();
+      }
+      // Délai pour limiter le brute-force
+      await new Promise((r) => setTimeout(r, 1000));
       return { success: false, message: 'Identifiants invalides' };
     }
-    
+
     // Réinitialiser les tentatives de connexion
-    await user.resetLoginAttempts();
-    
+    if (user.resetLoginAttempts) {
+      await user.resetLoginAttempts();
+    }
+
     // Mettre à jour la date de dernière connexion
-    user.lastLogin = new Date(CURRENT_TIMESTAMP);
+    user.lastLogin = new Date();
     await user.save();
-    
-    // Générer les tokens
-    const accessToken = jwtUtils.generateAccessToken(user);
-    const refreshToken = jwtUtils.generateRefreshToken(user);
-    
-    // Définir les cookies
-    await jwtUtils.setAuthCookies(accessToken, refreshToken);
-    
+
     // Retourner l'utilisateur (sans données sensibles)
     return {
       success: true,
@@ -79,8 +84,8 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
         role: user.role,
         avatar: user.avatar,
         isVerified: user.isVerified,
-        lastLogin: user.lastLogin
-      }
+        lastLogin: user.lastLogin,
+      },
     };
   } catch (error) {
     console.error('Erreur de connexion:', error);
@@ -96,21 +101,22 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
-    
+
     // Validation simple
     if (!name || !email || !password) {
       return { success: false, message: 'Tous les champs sont obligatoires' };
     }
-    
+
     await connectToDatabase();
-    
+
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return { success: false, message: 'Cet email est déjà utilisé' };
     }
-    
+
     // Créer un nouvel utilisateur
+    const now = new Date();
     const user = new User({
       name,
       email,
@@ -119,37 +125,30 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       isVerified: false,
       isActive: true,
       favoriteTeams: [],
-      createdAt: new Date(CURRENT_TIMESTAMP),
-      updatedAt: new Date(CURRENT_TIMESTAMP),
+      createdAt: now,
+      updatedAt: now,
       loginAttempts: 0
     });
-    
-    // Generate verification token
+
+    // Générer le token de vérification
     const verificationToken = user.generateVerificationToken();
-    
+
     await user.save();
-    
-    // ADDED: Send verification email
+
+    // Envoyer l'email de vérification
     const emailSent = await sendVerificationEmail(
       user.email,
       user.name,
       verificationToken
     );
-    
-    console.log(`[${CURRENT_TIMESTAMP}] Verification email sent: ${emailSent ? 'success' : 'failed'}`);
-    
-    // Générer les tokens
-    const accessToken = jwtUtils.generateAccessToken(user);
-    const refreshToken = jwtUtils.generateRefreshToken(user);
-    
-    // Définir les cookies
-    await jwtUtils.setAuthCookies(accessToken, refreshToken);
-    
+
+  
+
     // Retourner l'utilisateur (sans données sensibles)
     return {
       success: true,
-      message: emailSent 
-        ? 'Inscription réussie. Veuillez vérifier votre boîte email.' 
+      message: emailSent
+        ? 'Inscription réussie. Veuillez vérifier votre boîte email.'
         : 'Inscription réussie. Email de vérification non envoyé.',
       user: {
         _id: user._id.toString(),
@@ -160,7 +159,7 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       }
     };
   } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Erreur d'inscription:`, error);
+    console.error('Erreur d\'inscription:', error);
     return { success: false, message: 'Une erreur s\'est produite lors de l\'inscription' };
   }
 }
@@ -170,6 +169,10 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
  */
 export async function logoutAction(): Promise<AuthResult> {
   try {
+    const user = await sessionUtils.getCurrentUser();
+    if (!user) {
+      return { success: false, message: 'Aucun utilisateur connecté.' };
+    }
     await jwtUtils.clearAuthCookies();
     return { success: true, message: 'Déconnexion réussie' };
   } catch (error) {
