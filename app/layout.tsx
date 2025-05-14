@@ -6,6 +6,17 @@ import { ModalProvider } from '@/lib/contexts/ModalContext';
 import AuthModals from './components/auth/AuthModals';
 import './globals.css';
 
+export const metadata = {
+  title: 'MythaYun',
+  description: 'MythaYun App'
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1
+};
+
 // Loading fallback component
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen bg-slate-900">
