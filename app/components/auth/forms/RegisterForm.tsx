@@ -92,11 +92,15 @@ export default function RegisterForm({ onSuccess, onLoginClick }: RegisterFormPr
       
       const result = await registerAction(registerFormData);
       
-      if (result.success) {
-        updateUser(result.user);
+      // Add defensive check before accessing properties
+      if (result && result.success) {
+        // Only call updateUser if result.user exists
+        if (result.user) {
+          updateUser(result.user);
+        }
         onSuccess();
       } else {
-        setError(result.message || 'Échec de l\'inscription');
+        setError(result?.message || 'Échec de l\'inscription');
       }
     } catch (err) {
       setError('Une erreur inattendue s\'est produite');
