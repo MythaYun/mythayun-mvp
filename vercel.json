@@ -1,24 +1,9 @@
 {
-    "version": 2,
-    "buildCommand": "npm run build",
-    "framework": "nextjs",
-    "git": {
-      "deploymentEnabled": {
-        "main": false,
-        "staging": false,
-        "develop": false
-      }
-    },
-    "headers": [
-      {
-        "source": "/api/(.*)",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-store, max-age=0" }
-        ]
-      }
-    ],
-    "env": {
-      "CURRENT_TIMESTAMP": "2025-05-08 14:55:52",
-      "CURRENT_USER": "Sdiabate1337"
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
     }
-  }
+  ]
+}
