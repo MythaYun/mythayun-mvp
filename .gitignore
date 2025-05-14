@@ -7,3 +7,5 @@ coverage/
 node_modules/
 *.node
 .vercel
+.env.local
+.env.*.local
