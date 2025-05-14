@@ -23,3 +23,32 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    // Get token from the URL
+    const token = request.nextUrl.searchParams.get('token');
+    
+    console.log(`[2025-05-13 21:18:21] Processing reset password link with token: ${token?.substring(0, 10)}...`);
+    
+    // Construct the base URL correctly based on environment
+    const baseUrl = process.env.CODESPACE_NAME 
+      ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
+      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    // Redirect to home page with parameters to open the reset password modal
+    if (token) {
+      return NextResponse.redirect(`${baseUrl}/?openModal=resetPassword&token=${encodeURIComponent(token)}`);
+    } else {
+      return NextResponse.redirect(`${baseUrl}/?error=${encodeURIComponent('Token de réinitialisation manquant')}`);
+    }
+  } catch (error) {
+    console.error(`[2025-05-13 21:18:21] Error processing reset password link:`, error);
+    
+    const baseUrl = process.env.CODESPACE_NAME 
+      ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
+      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    return NextResponse.redirect(`${baseUrl}/?error=${encodeURIComponent('Erreur lors du traitement du lien')}`);
+  }
+}

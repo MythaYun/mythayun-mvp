@@ -78,30 +78,44 @@ export function verifyToken(token: string): JwtPayload | null {
 /**
  * Définir les cookies d'authentification
  */
+/**
+ * Définir les cookies d'authentification
+ */
 export async function setAuthCookies(accessToken: string, refreshToken: string): Promise<void> {
   const cookieStore = await cookies();
+  
+  // Detect GitHub Codespaces environment
+  const isGitHubCodespaces = process.env.CODESPACES === 'true' || 
+                            process.env.GITHUB_CODESPACES === 'true' || 
+                            process.env.NEXT_PUBLIC_APP_URL?.includes('.app.github.dev');
+                            
+  // Setup cookie options based on environment
+  const cookieOptions = {
+    httpOnly: true,
+    secure: true, // Always secure in Codespaces
+    sameSite: isGitHubCodespaces ? 'none' as const : 'strict' as const,
+    path: '/',
+    // Domain is important for Codespaces - remove domain setting for local development
+    ...(isGitHubCodespaces ? {} : {})
+  };
   
   // Cookie du token d'accès
   cookieStore.set({
     name: 'accessToken',
     value: accessToken,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    ...cookieOptions,
     maxAge: JWT_EXPIRY_SECONDS,
-    path: '/'
   });
   
   // Cookie du token de rafraîchissement
   cookieStore.set({
     name: 'refreshToken',
     value: refreshToken,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    ...cookieOptions,
     maxAge: JWT_REFRESH_EXPIRY_SECONDS,
-    path: '/'
   });
+  
+  console.log('Auth cookies set:', { isGitHubCodespaces, cookieOptions });
 }
 
 /**
@@ -161,6 +175,9 @@ export const middlewareUtils = {
     return request.cookies.get('refreshToken')?.value;
   }
 };
+
+
+
 
 /**
  * Exporter tous les utilitaires JWT

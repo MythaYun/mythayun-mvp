@@ -5,27 +5,44 @@ import Modal from '../../ui/Modal';
 import LoginForm from '../forms/LoginForm';
 import { useModal } from '@/lib/contexts/ModalContext';
 
-export default function LoginModal() {
+interface LoginModalProps {
+  verificationSuccess?: boolean;
+  passwordReset?: boolean;
+}
+
+export default function LoginModal({ 
+  verificationSuccess = false,
+  passwordReset = false
+}: LoginModalProps) {
   const { closeModal, openModal } = useModal();
-
-  const handleSuccess = () => {
+  
+  // Current timestamp for logging
+  const CURRENT_TIMESTAMP = "2025-05-14 00:04:49";
+  
+  const handleLoginSuccess = () => {
+    console.log(`[${CURRENT_TIMESTAMP}] Login successful, modal will close automatically`);
     closeModal();
+    // No need to redirect here, the AuthContext handles it
   };
-
+  
   const goToRegister = () => {
-    openModal('register');
+    closeModal();
+    setTimeout(() => openModal('register'), 100);
   };
-
+  
   const goToForgotPassword = () => {
-    openModal('forgotPassword');
+    closeModal();
+    setTimeout(() => openModal('forgotPassword'), 100);
   };
 
   return (
     <Modal title="Connexion" onClose={closeModal}>
-      <LoginForm 
-        onSuccess={handleSuccess} 
+      <LoginForm
+        onSuccess={handleLoginSuccess}
         onRegisterClick={goToRegister}
         onForgotPasswordClick={goToForgotPassword}
+        verificationSuccess={verificationSuccess}
+        passwordReset={passwordReset}
       />
     </Modal>
   );

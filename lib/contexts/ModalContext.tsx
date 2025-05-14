@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 // Types de modaux disponibles
 export type ModalType = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'verifyEmail' | null;
@@ -13,7 +13,7 @@ interface ModalContextType {
 }
 
 // Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-07 17:42:36";
+const CURRENT_TIMESTAMP = "2025-05-10 14:51:05";
 const CURRENT_USER = "Sdiabate1337";
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -22,17 +22,19 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<any>(null);
 
-  const openModal = (modal: ModalType, data?: any): void => {
+  // Memoize the openModal function to prevent recreation on each render
+  const openModal = useCallback((modal: ModalType, data?: any): void => {
     console.log(`[${CURRENT_TIMESTAMP}] Ouverture du modal: ${modal}`);
     setActiveModal(modal);
     if (data) setModalData(data);
-  };
+  }, []); // Empty dependency array - function won't change
 
-  const closeModal = (): void => {
+  // Memoize the closeModal function too
+  const closeModal = useCallback((): void => {
     console.log(`[${CURRENT_TIMESTAMP}] Fermeture du modal: ${activeModal}`);
     setActiveModal(null);
     setModalData(null);
-  };
+  }, [activeModal]); // Depends on activeModal to log the correct modal being closed
 
   return (
     <ModalContext.Provider value={{ activeModal, openModal, closeModal, modalData }}>

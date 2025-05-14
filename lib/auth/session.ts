@@ -8,6 +8,8 @@ import mongoose from 'mongoose';
 const CURRENT_TIMESTAMP = "2025-05-07 12:35:03";
 const CURRENT_USER = "Sdiabate1337";
 
+
+
 /**
  * Récupérer l'utilisateur actuel à partir du token JWT
  */
