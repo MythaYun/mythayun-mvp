@@ -59,105 +59,126 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Function to check authentication status
-  const checkAuth = useCallback(async () => {
-    // FIX 4: Don't check auth if a refresh is already in progress
-    if (refreshInProgress.current) {
-      console.log(`[${CURRENT_TIMESTAMP}] Auth check skipped - refresh already in progress`);
-      return null;
-    }
+const checkAuth = useCallback(async () => {
+  // Skip check if already in progress
+  if (refreshInProgress.current) {
+    console.log(`[${new Date().toISOString()}] Auth check skipped - refresh already in progress`);
+    return null;
+  }
+  
+  try {
+    refreshInProgress.current = true;
+    setIsLoading(true);
     
-    try {
-      refreshInProgress.current = true;
-      setIsLoading(true);
-      
-      console.log(`[${CURRENT_TIMESTAMP}] Checking authentication status...`);
-      
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        },
-        // Ensure we always get fresh data
-        cache: 'no-store'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          setUser(data.user);
-          console.log(`[${CURRENT_TIMESTAMP}] User authenticated:`, data.user.email);
-          return data.user;
-        } else {
-          setUser(null);
-          console.log(`[${CURRENT_TIMESTAMP}] No authenticated user found`);
-          return null;
-        }
+    console.log(`[${new Date().toISOString()}] Checking authentication status...`);
+    
+    // Add a timestamp query parameter to prevent caching
+    const response = await fetch('/api/auth/me?t=' + Date.now(), {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+      credentials: 'include', // Important: This ensures cookies are sent with the request
+    });
+    
+    // Log the status code for debugging
+    console.log(`[${new Date().toISOString()}] Auth check response status: ${response.status}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.user) {
+        setUser(data.user);
+        console.log(`[${new Date().toISOString()}] User authenticated:`, data.user.email);
+        return data.user;
       } else {
         setUser(null);
-        const errorStatus = response.status;
-        
-        // Only set error for non-401 responses (401 just means not authenticated)
-        if (response.status !== 401) {
-          setAuthError(`Authentication error: ${errorStatus}`);
-        } else {
-          console.log(`[${CURRENT_TIMESTAMP}] Not authenticated (401 response)`);
-        }
-        
+        console.log(`[${new Date().toISOString()}] No authenticated user found in response`);
         return null;
       }
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error checking authentication:`, error);
+    } else {
       setUser(null);
-      setAuthError('Failed to verify authentication status');
+      const errorStatus = response.status;
+      
+      // Only set error for non-401 responses
+      if (response.status !== 401) {
+        setAuthError(`Authentication error: ${errorStatus}`);
+      } else {
+        console.log(`[${new Date().toISOString()}] Not authenticated (401 response)`);
+      }
+      
       return null;
-    } finally {
-      setIsLoading(false);
-      setLastRefresh(Date.now());
-      refreshInProgress.current = false;
-      initialAuthCheckDone.current = true;
     }
-  }, []);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error checking authentication:`, error);
+    setUser(null);
+    setAuthError('Failed to verify authentication status');
+    return null;
+  } finally {
+    setIsLoading(false);
+    setLastRefresh(Date.now());
+    refreshInProgress.current = false;
+    initialAuthCheckDone.current = true;
+  }
+}, []);
 
 const login = async (email: string, password: string) => {
   try {
-    // Create FormData instead of using JSON
-    const formData = new FormData();
-    formData.append('email', email);
-    formData.append('password', password);
+    setAuthError(null); // Clear previous errors
     
     console.log(`[${new Date().toISOString()}] Attempting login for: ${email}`);
     
+    // Use JSON format for consistency
     const response = await fetch('/api/auth/login', {
       method: 'POST',
-      // Don't set Content-Type header - browser will set it automatically with boundary
-      body: formData
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+      credentials: 'include', // Important: This ensures cookies are stored
     });
     
-    if (!response.ok) {
-      throw new Error(`Login failed: ${response.status}`);
+    // Always try to parse the response body
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      console.error('Failed to parse response:', e);
+      throw new Error('Erreur serveur: Réponse invalide');
     }
     
-    const data = await response.json();
+    if (!response.ok) {
+      // Use the server's error message if available
+      const errorMessage = data?.message || `Login failed: ${response.status}`;
+      throw new Error(errorMessage);
+    }
     
-    // Properly handle the response
-    if (data.success) {
-      // Update auth state - only set the user, isAuthenticated is derived from user
+    // Successful login
+    if (data.success && data.user) {
       setUser(data.user);
-      
-      // For debugging
       console.log(`[${new Date().toISOString()}] Login successful for: ${email}`);
+      return { success: true, user: data.user };
+    } else if (data.success) {
+      // We need to fetch the user data if not provided
+      console.log(`[${new Date().toISOString()}] Login successful but fetching user data...`);
       
-      return { success: true };
+      // Refresh user data immediately
+      const userData = await checkAuth();
+      if (userData) {
+        return { success: true, user: userData };
+      } else {
+        throw new Error('Failed to fetch user data after successful login');
+      }
     } else {
-      console.log(`[${new Date().toISOString()}] Login failed: ${data.message}`);
+      console.log(`[${new Date().toISOString()}] Login returned success:false: ${data.message}`);
       setAuthError(data.message || 'Authentication failed');
-      return { success: false, error: data.message };
+      return { success: false, error: data.message || 'Authentication failed' };
     }
   } catch (error) {
     console.error('Login error:', error);
-    setAuthError('Server error during login');
-    return { success: false, error: 'Server error during login' };
+    const errorMessage = error instanceof Error ? error.message : 'Server error during login';
+    setAuthError(errorMessage);
+    return { success: false, error: errorMessage };
   }
 };
 

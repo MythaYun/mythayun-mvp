@@ -3,6 +3,7 @@ import { connectToDatabase } from '../db/mongodb';
 import User, { IUser } from '../models/User';
 import { cookies } from 'next/headers';
 import mongoose from 'mongoose';
+import { JWT_ACCESS_EXPIRY_SECONDS } from './jwt-types';
 
 // Informations système actuelles
 const CURRENT_TIMESTAMP = "2025-05-07 12:35:03";
@@ -13,44 +14,74 @@ const CURRENT_USER = "Sdiabate1337";
 /**
  * Récupérer l'utilisateur actuel à partir du token JWT
  */
-export async function getCurrentUser(): Promise<IUser | null> {
-  try {
-    // Récupérer le token d'accès
-    const accessToken = await jwtUtils.getAccessToken();
-    
-    if (!accessToken) {
+  async function getCurrentUser(): Promise<IUser | null> {
+    try {
+      console.log('[Session] Getting current user...');
+      
+      // Try access token first
+      const accessToken = await jwtUtils.getAccessToken();
+      
+      if (accessToken) {
+        console.log('[Session] Access token found, verifying...');
+        const payload = jwtUtils.verifyToken(accessToken);
+        
+        if (payload && payload.userId) {
+          console.log('[Session] Valid access token, fetching user...');
+          await connectToDatabase();
+          const user = await User.findById(payload.userId).select('-password');
+          return user;
+        }
+      }
+      
+      // If access token is invalid or missing, try refresh token
+      const refreshToken = await jwtUtils.getRefreshToken();
+      
+      if (refreshToken) {
+        console.log('[Session] Trying refresh token...');
+        const payload = jwtUtils.verifyToken(refreshToken);
+        
+        if (payload && payload.userId && payload.tokenType === 'refresh') {
+          console.log('[Session] Valid refresh token, refreshing access token...');
+          
+          // Get user to generate new tokens
+          await connectToDatabase();
+          const user = await User.findById(payload.userId).select('-password');
+          
+          if (user) {
+            // Generate new access token
+            const newAccessToken = jwtUtils.generateAccessToken({
+              userId: user._id.toString(),
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              tokenType: 'access'
+            });
+            
+            // Set the new access token cookie
+            const cookieStore = cookies();
+            (await cookieStore).set({
+              name: 'accessToken',
+              value: newAccessToken,
+              httpOnly: true,
+              secure: true,
+              maxAge: JWT_ACCESS_EXPIRY_SECONDS,
+              path: '/',
+              sameSite: 'lax'
+            });
+            
+            console.log('[Session] Access token refreshed');
+            return user;
+          }
+        }
+      }
+      
+      console.log('[Session] No valid tokens found');
+      return null;
+    } catch (error) {
+      console.error('[Session] Error getting current user:', error);
       return null;
     }
-    
-    // Vérifier le token
-    const payload = jwtUtils.verifyToken(accessToken);
-    
-    if (!payload) {
-      // Essayer de rafraîchir le token
-      const refreshResult = await refreshSession();
-      if (!refreshResult.success) {
-        return null;
-      }
-      
-      // Récupérer le nouveau token et le vérifier
-      const newAccessToken = await jwtUtils.getAccessToken();
-      const newPayload = newAccessToken ? jwtUtils.verifyToken(newAccessToken) : null;
-      
-      if (!newPayload) {
-        return null;
-      }
-      
-      // Continuer avec le nouveau payload
-      return getUserFromPayload(newPayload);
-    }
-    
-    // Récupérer l'utilisateur à partir du payload
-    return getUserFromPayload(payload);
-  } catch (error) {
-    console.error('Erreur lors de la récupération de l\'utilisateur actuel:', error);
-    return null;
   }
-}
 
 /**
  * Récupérer l'utilisateur à partir du payload JWT

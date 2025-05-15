@@ -14,10 +14,13 @@ const CURRENT_USER = "Sdiabate1337";
 
 // Types de réponses pour les actions
 type AuthResult = {
+  accessToken?: string;  // Make these optional with ?
+  refreshToken?: string;
   success: boolean;
   message?: string;
   user?: Partial<IUser>;
   needsVerification?: boolean;
+  token?: string; 
 };
 
 /**
@@ -27,30 +30,48 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
   try {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
+    
+    // Current timestamp for logging
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Processing login for: ${email}`);
 
     // Validation simple
     if (!email || !password) {
-      return { success: false, message: 'Email et mot de passe requis' };
+      return { 
+        success: false, 
+        message: 'Email et mot de passe requis' 
+      };
     }
 
     await connectToDatabase();
 
     // Rechercher l'utilisateur et inclure le mot de passe pour la vérification
     const user = await User.findOne({ email }).select('+password');
+    
+    // Si l'utilisateur n'existe pas
     if (!user) {
       // Délai pour limiter le brute-force
       await new Promise((r) => setTimeout(r, 1000));
-      return { success: false, message: 'Identifiants invalides' };
+      return { 
+        success: false, 
+        message: 'Email ou mot de passe incorrect'  // Message générique pour ne pas indiquer l'existence du compte
+      };
     }
 
     // Vérifier si le compte est vérifié
     if (!user.isVerified) {
-      return { success: false, message: 'Veuillez vérifier votre email avant de vous connecter.' };
+      return { 
+        success: false, 
+        message: 'Veuillez vérifier votre adresse email avant de vous connecter' 
+      };
     }
 
     // Vérifier si le compte est verrouillé
     if (user.isAccountLocked && user.isAccountLocked()) {
-      return { success: false, message: 'Compte temporairement verrouillé. Veuillez réessayer plus tard.' };
+      return { 
+        success: false, 
+        message: 'Compte temporairement verrouillé suite à plusieurs tentatives de connexion échouées. Veuillez réessayer plus tard ou réinitialiser votre mot de passe.' 
+      };
     }
 
     // Vérifier le mot de passe
@@ -60,9 +81,19 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
       if (user.incrementLoginAttempts) {
         await user.incrementLoginAttempts();
       }
+      
+      // Obtenir le nombre de tentatives restantes
+      const attemptsRemaining = user.attemptsRemaining ? user.attemptsRemaining() : null;
+      const attemptsMessage = attemptsRemaining !== null ? 
+        ` (${attemptsRemaining} tentative${attemptsRemaining > 1 ? 's' : ''} restante${attemptsRemaining > 1 ? 's' : ''})` : '';
+      
       // Délai pour limiter le brute-force
       await new Promise((r) => setTimeout(r, 1000));
-      return { success: false, message: 'Identifiants invalides' };
+      
+      return { 
+        success: false, 
+        message: `Email ou mot de passe incorrect${attemptsMessage}` 
+      };
     }
 
     // Réinitialiser les tentatives de connexion
@@ -74,22 +105,43 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
     user.lastLogin = new Date();
     await user.save();
 
-    // Retourner l'utilisateur (sans données sensibles)
-    return {
+     const accessToken = jwtUtils.generateAccessToken({
+      userId: user._id!.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tokenType: 'access'
+    });
+
+    const refreshToken = jwtUtils.generateRefreshToken(user);
+
+    // Set auth cookies (this is important!)
+    await jwtUtils.setAuthCookies(accessToken, refreshToken);
+
+    console.log(`[${new Date().toISOString()}] Login successful, tokens generated`);
+
+    // Return user data and tokens
+return {
       success: true,
+      message: 'Connexion réussie.',
       user: {
         _id: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
-        avatar: user.avatar,
-        isVerified: user.isVerified,
-        lastLogin: user.lastLogin,
+        isVerified: user.isVerified
       },
+      accessToken,
+      refreshToken
     };
   } catch (error) {
-    console.error('Erreur de connexion:', error);
-    return { success: false, message: 'Une erreur s\'est produite lors de la connexion' };
+    console.error('Erreur d\'inscription:', error);
+    return { 
+      success: false, 
+      message: 'Une erreur s\'est produite lors de l\'inscription',
+      accessToken: undefined,
+      refreshToken: undefined
+    };
   }
 }
 

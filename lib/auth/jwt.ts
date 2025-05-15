@@ -6,50 +6,26 @@ import { IUser } from '../models/User';
 // Informations système actuelles
 const CURRENT_TIMESTAMP = "2025-05-07 12:49:05";
 const CURRENT_USER = "Sdiabate1337";
-
-// Type du payload JWT
-export interface JwtPayload {
-  userId: string;
-  name: string;
-  email: string;
-  role: string;
-  tokenType?: string;
-  iat?: number;
-  exp?: number;
-}
-
-// Configuration JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'mythayun-jwt-secret-key';
-// Définir l'expiration en secondes au lieu de chaînes
-const JWT_EXPIRY_SECONDS = 15 * 60; // 15 minutes
-const JWT_REFRESH_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 jours
+import { JwtPayload, JWT_SECRET, JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from './jwt-types';
 
 /**
- * Générer un token d'accès
+ * Generate an access token for authentication
  */
-export function generateAccessToken(user: IUser): string {
-  const payload: JwtPayload = {
-    userId: user._id!.toString(),
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    tokenType: 'access'
-  };
-  
-  // Utiliser des valeurs numériques pour expiresIn (en secondes)
+export function generateAccessToken(payload: JwtPayload): string {
   const options: SignOptions = { 
-    expiresIn: JWT_EXPIRY_SECONDS 
+    expiresIn: JWT_ACCESS_EXPIRY_SECONDS 
   };
   
   return jwt.sign(payload, JWT_SECRET, options);
 }
 
 /**
- * Générer un token de rafraîchissement
+ * Generate a refresh token for maintaining session
  */
 export function generateRefreshToken(user: IUser): string {
+  // Create a payload that explicitly maps IUser properties to JwtPayload
   const payload: JwtPayload = {
-    userId: user._id!.toString(),
+    userId: user._id!.toString(), // Convert MongoDB ObjectId to string
     name: user.name,
     email: user.email,
     role: user.role,
@@ -104,7 +80,7 @@ export async function setAuthCookies(accessToken: string, refreshToken: string):
     name: 'accessToken',
     value: accessToken,
     ...cookieOptions,
-    maxAge: JWT_EXPIRY_SECONDS,
+    maxAge: JWT_ACCESS_EXPIRY_SECONDS,
   });
   
   // Cookie du token de rafraîchissement
