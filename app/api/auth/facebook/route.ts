@@ -1,28 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFacebookOAuthURL } from '@/lib/auth/social-auth';
 
-// Current system information
-const CURRENT_TIMESTAMP = "2025-05-14 04:37:12";
-const CURRENT_USER = "Sdiabate1337";
-
 export async function GET(request: NextRequest) {
   try {
-    console.log(`[${CURRENT_TIMESTAMP}] Initializing Facebook authentication`);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Initializing Facebook authentication`);
     
-    // Generate Facebook authorization URL with proper codespace domain handling
+    // Generate Facebook OAuth URL with enhanced debugging
     const url = getFacebookOAuthURL();
+    console.log(`[${timestamp}] Facebook OAuth URL generated: ${url.substring(0, 100)}...`);
     
-    console.log(`[${CURRENT_TIMESTAMP}] Facebook OAuth URL generated: ${url}`);
+    // Add detailed logging for troubleshooting
+    console.log(`[${timestamp}] Facebook auth parameters:`, {
+      appId: process.env.FACEBOOK_APP_ID ? 'Set' : 'Missing',
+      appSecret: process.env.FACEBOOK_APP_SECRET ? 'Set' : 'Missing',
+      redirectUri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/facebook/callback`,
+      host: request.headers.get('host'),
+      referrer: request.headers.get('referer')
+    });
     
-    // Return direct redirect
+    // Direct server-side redirect
     return NextResponse.redirect(url);
-    
   } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Error initializing Facebook authentication:`, error);
+    console.error(`[${new Date().toISOString()}] Error initializing Facebook authentication:`, error);
     
-    // In case of error, redirect to home page with error parameter
-    const errorUrl = new URL('/', request.url);
-    errorUrl.searchParams.set('error', 'facebook_auth_failed');
+    // Log detailed error for debugging
+    const errorDetails = error instanceof Error ? {
+      message: error.message,
+      stack: error.stack?.substring(0, 500)
+    } : { message: 'Unknown error' };
+    
+    console.error(`[${new Date().toISOString()}] Facebook auth error details:`, errorDetails);
+    
+    // In case of error, redirect to the home page with an error parameter
+    const errorUrl = new URL('/?auth_error=facebook_auth_failed', request.url);
     return NextResponse.redirect(errorUrl);
   }
 }

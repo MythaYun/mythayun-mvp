@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { BsFacebook } from 'react-icons/bs';
 import { FiLoader } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
 
 // Optional: You can accept a mode prop to customize button text for "login" vs "register" contexts
 type SocialButtonsProps = {
@@ -16,45 +17,28 @@ export default function SocialLoginButtons({ mode = 'login', onError }: SocialBu
     google: false,
     facebook: false
   });
+  const router = useRouter();
   
   const actionText = mode === 'login' ? 'Se connecter avec' : 'S\'inscrire avec';
   const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
   
-  async function handleSocialLogin(provider: 'google' | 'facebook') {
+  function handleSocialLogin(provider: 'google' | 'facebook') {
     setIsLoading(prev => ({ ...prev, [provider]: true }));
     
     try {
       console.log(`[${currentTimestamp}] Initialisation de l'authentification ${provider}`);
       
-      // Fetch OAuth URL from backend
-      const response = await fetch(`/api/auth/${provider}`);
+      // Use Next.js router for client-side navigation (or direct navigation for simpler approach)
+      // Option 1: Direct navigation - more reliable, ensures we get full page reload
+      window.location.href = `/api/auth/${provider}`;
       
-      // Handle HTTP errors
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
+      // Option 2: Next.js router - better UX but can have issues with auth redirects
+      // router.push(`/api/auth/${provider}`);
       
-      const data = await response.json();
+      // Note: We intentionally don't reset loading state here since we're navigating away
       
-      if (data.success && data.url) {
-        console.log(`[${currentTimestamp}] Redirection vers ${provider} OAuth`);
-        window.location.href = data.url;
-      } else {
-        // Handle API error response
-        const errorMessage = data.message || `Erreur de connexion avec ${provider}`;
-        console.error(`[${currentTimestamp}] Erreur API ${provider}:`, errorMessage);
-        
-        if (onError) {
-          onError(errorMessage);
-        } else {
-          // Fallback error handling if no onError prop
-          alert(`Erreur lors de la connexion avec ${provider}. Veuillez réessayer.`);
-        }
-        
-        setIsLoading(prev => ({ ...prev, [provider]: false }));
-      }
     } catch (error) {
-      // Handle network or other errors
+      // This will only catch client-side errors before navigation
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       console.error(`[${currentTimestamp}] Erreur lors de la connexion ${provider}:`, errorMessage);
       
@@ -66,8 +50,6 @@ export default function SocialLoginButtons({ mode = 'login', onError }: SocialBu
       
       setIsLoading(prev => ({ ...prev, [provider]: false }));
     }
-    // Note: We don't clear loading state in finally block because redirect will happen
-    // and we want the button to stay in loading state until the page navigates away
   }
   
   return (

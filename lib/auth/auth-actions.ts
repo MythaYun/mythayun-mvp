@@ -113,7 +113,7 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
       tokenType: 'access'
     });
 
-    const refreshToken = jwtUtils.generateRefreshToken(user);
+    const refreshToken = jwtUtils.generateRefreshTokenFromUser(user);
 
     // Set auth cookies (this is important!)
     await jwtUtils.setAuthCookies(accessToken, refreshToken);

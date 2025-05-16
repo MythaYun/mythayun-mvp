@@ -1,73 +1,99 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleGoogleCallback } from '@/lib/auth/social-auth';
+import { JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from '@/lib/auth/jwt-types';
 
 export async function GET(request: NextRequest) {
   try {
-    // Extract authorization code and errors from URL
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Google OAuth callback received`);
+    
+    // Get the authorization code from the request
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
-    const error = searchParams.get('error');
     
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] Processing Google callback`, { hasCode: !!code, error: error || 'none' });
-    
-    // FIXED: Consistent base URL determination across all code paths
-    // This should match exactly what's in your social-auth.js getGoogleOAuthURL function
-    const baseUrl = process.env.VERCEL_ENV === 'production'
-      ? 'https://mythayun-staging.vercel.app'
-      : process.env.CODESPACE_NAME 
-        ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
-        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    
-    // Log the base URL to help with debugging
-    console.log(`[${timestamp}] Using base URL: ${baseUrl}`);
-    
-    // FIXED: Consistent error parameter handling
-    if (error || !code) {
-      const errorReason = error || 'missing_code';
-      console.error(`[${timestamp}] Google OAuth error: ${errorReason}`);
-      return NextResponse.redirect(`${baseUrl}/?auth_error=${encodeURIComponent(errorReason)}`);
+    if (!code) {
+      console.error(`[${timestamp}] No authorization code provided`);
+      return NextResponse.redirect('/?auth_error=No_authorization_code');
     }
     
-    // Process the callback and get the JWT token
-    const { token, newUser } = await handleGoogleCallback(code);
+    // Process the OAuth flow
+    const { accessToken, refreshToken, newUser } = await handleGoogleCallback(code);
     
-    if (!token) {
-      console.error(`[${timestamp}] Google authentication failure: Token not generated`);
-      return NextResponse.redirect(`${baseUrl}/?auth_error=token_generation_failed`);
+    // Get host from the request
+    const host = request.headers.get('host');
+    console.log(`[${timestamp}] Host from headers: ${host}`);
+    
+    // Always redirect to dashboard with absolute URL in Codespaces
+    const redirectPath = newUser ? '/dashboard?welcome=true' : '/dashboard';
+    
+    // CRITICAL FIX: Use the correct GitHub Codespaces URL format
+    if (process.env.CODESPACE_NAME) {
+      // Use codespace name with -3000 suffix
+      const codespaceBaseUrl = `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
+      const absoluteUrl = `${codespaceBaseUrl}${redirectPath}`;
+      
+      console.log(`[${timestamp}] Using absolute URL for Codespaces: ${absoluteUrl}`);
+      
+      // Create a Headers object for multiple Set-Cookie headers
+      const headers = new Headers();
+      headers.append('Location', absoluteUrl);
+      
+      // Add access token cookie
+      headers.append('Set-Cookie', 
+        `accessToken=${accessToken}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${JWT_ACCESS_EXPIRY_SECONDS}`
+      );
+      
+      // Add refresh token cookie
+      headers.append('Set-Cookie',
+        `refreshToken=${refreshToken}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${JWT_REFRESH_EXPIRY_SECONDS}`
+      );
+      
+      // Use native Response with Headers object
+      console.log(`[${timestamp}] Redirecting to: ${absoluteUrl} with cookies`);
+      return new Response(null, {
+        status: 302,
+        headers: headers
+      });
     }
     
-    // Create cookie options for JWT token
+    // For non-Codespaces environments, use the standard Next.js redirect
+    const response = NextResponse.redirect(new URL(redirectPath, request.nextUrl));
+    
+    // Set cookie options for standard environment
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-      path: '/'
+      path: '/',
     };
     
-    // Create response with redirect to dashboard
-    const response = NextResponse.redirect(`${baseUrl}/dashboard${newUser ? '?new_user=true' : ''}`);
+    // Set access token cookie
+    response.cookies.set({
+      name: 'accessToken',
+      value: accessToken,
+      ...cookieOptions,
+      maxAge: JWT_ACCESS_EXPIRY_SECONDS,
+    });
     
-    // Set JWT token cookie
-    response.cookies.set('accessToken', token, cookieOptions);
-    
-    console.log(`[${timestamp}] Google authentication successful, redirecting to dashboard`);
+    // Set refresh token cookie
+    response.cookies.set({
+      name: 'refreshToken',
+      value: refreshToken,
+      ...cookieOptions,
+      maxAge: JWT_REFRESH_EXPIRY_SECONDS,
+    });
     
     return response;
   } catch (error) {
-    const timestamp = new Date().toISOString();
-    console.error(`[${timestamp}] Google callback error:`, error);
+    // Log the error
+    console.error(`[${new Date().toISOString()}] Google OAuth callback error:`, error);
     
-    // FIXED: Use same base URL determination as success path
-    const baseUrl = process.env.VERCEL_ENV === 'production'
-      ? 'https://mythayun-staging.vercel.app'
-      : process.env.CODESPACE_NAME 
-        ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
-        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    // Prepare error message
+    const errorMessage = error instanceof Error 
+      ? encodeURIComponent(error.message) 
+      : 'Unknown_error';
     
-    // FIXED: Consistent error parameter naming
-    const errorMessage = error instanceof Error ? error.message : 'unknown_error';
-    return NextResponse.redirect(`${baseUrl}/?auth_error=${encodeURIComponent(errorMessage)}`);
+    // Direct redirect to root with error parameter
+    return NextResponse.redirect(`/?auth_error=${errorMessage}`);
   }
 }

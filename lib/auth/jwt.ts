@@ -21,22 +21,32 @@ export function generateAccessToken(payload: JwtPayload): string {
 
 /**
  * Generate a refresh token for maintaining session
+ * Updated to accept a JwtPayload instead of IUser
  */
-export function generateRefreshToken(user: IUser): string {
-  // Create a payload that explicitly maps IUser properties to JwtPayload
-  const payload: JwtPayload = {
-    userId: user._id!.toString(), // Convert MongoDB ObjectId to string
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    tokenType: 'refresh'
-  };
-  
+export function generateRefreshToken(payload: JwtPayload): string {
   const options: SignOptions = { 
     expiresIn: JWT_REFRESH_EXPIRY_SECONDS 
   };
   
   return jwt.sign(payload, JWT_SECRET, options);
+}
+
+/**
+ * Generate a refresh token for maintaining session
+ */
+export function generateRefreshTokenFromUser(user: IUser): string {
+  // Convert user to a proper JWT payload
+  const userObj = user.toObject ? user.toObject() : JSON.parse(JSON.stringify(user));
+  
+  const payload: JwtPayload = {
+    userId: userObj._id.toString(),
+    name: userObj.name,
+    email: userObj.email,
+    role: userObj.role,
+    tokenType: 'refresh'
+  };
+  
+  return generateRefreshToken(payload);
 }
 
 /**
@@ -167,7 +177,8 @@ export const jwtUtils = {
   clearAuthCookies,
   getAccessToken,           // Corrigé: renommé de getAccessTokenFromCookies
   getRefreshToken,          // Corrigé: renommé de getRefreshTokenFromCookies
-  middlewareUtils
+  middlewareUtils,
+  generateRefreshTokenFromUser
 };
 
 export default jwtUtils;

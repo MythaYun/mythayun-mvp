@@ -32,6 +32,9 @@ export interface IUser {
   profilePicture?: string; // For social profile pictures
   createdAt: Date;
   updatedAt: Date;
+
+  toObject: (options?: object) => any;
+  toJSON: (options?: object) => any;
 }
 
 // Methods available on user documents

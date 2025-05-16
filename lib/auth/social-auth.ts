@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto';
 import { connectToDatabase } from '../db/mongodb';
-import User from '../models/User'; // Fixed import - using default export
-import { generateAccessToken } from './jwt';
+import User from '../models/User'; 
+import { JwtPayload } from './jwt-types';
+import { generateAccessToken, generateRefreshToken } from './jwt';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-05-13 22:46:07";
+const CURRENT_TIMESTAMP = "2025-05-15 20:49:20";
 const CURRENT_USER = "Sdiabate1337";
 
 // OAuth constants
@@ -15,9 +16,13 @@ const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 
 // Base URL function
 const getBaseUrl = () => {
-  return process.env.CODESPACE_NAME 
-    ? `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`
-    : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  if (process.env.CODESPACE_NAME) {
+    // Use port 3000 variant as per your confirmation
+    return `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
+  }
+  
+  // Fallback to configured URL or localhost
+  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000';
 };
 
 // Generate Google OAuth URL
@@ -95,7 +100,7 @@ async function getGoogleUserInfo(access_token: string, id_token: string): Promis
 }
 
 // Handle Google callback
-export async function handleGoogleCallback(code: string): Promise<{ token: string, newUser: boolean }> {
+export async function handleGoogleCallback(code: string): Promise<{ accessToken: string, refreshToken: string, newUser: boolean }> {
   try {
     console.log(`[${CURRENT_TIMESTAMP}] Processing Google OAuth callback`);
     
@@ -170,10 +175,34 @@ export async function handleGoogleCallback(code: string): Promise<{ token: strin
       console.log(`[${CURRENT_TIMESTAMP}] Existing Google user logged in: ${user.email} (${user._id})`);
     }
     
-    // 7. Generate JWT token
-    const token = generateAccessToken(user);
+    // 7. Convert Mongoose document to plain object - THIS IS THE CRITICAL FIX
+    const userObject = user.toObject ? user.toObject() : JSON.parse(JSON.stringify(user));
     
-    return { token, newUser };
+    // 8. Create properly structured JWT payload
+    const jwtPayload: JwtPayload = {
+      userId: userObject._id.toString(),
+      name: userObject.name,
+      email: userObject.email,
+      role: userObject.role,
+      tokenType: 'access'
+    };
+    
+    // 9. Generate tokens with plain objects
+    const accessToken = generateAccessToken(jwtPayload);
+
+    const refreshPayload: JwtPayload = {
+      userId: userObject._id.toString(),
+      name: userObject.name,
+      email: userObject.email,
+      role: userObject.role,
+      tokenType: 'refresh'
+    };
+
+    const refreshToken = generateRefreshToken(refreshPayload);
+    
+    console.log(`[${CURRENT_TIMESTAMP}] Generated auth tokens for: ${userObject.email}`);
+    
+    return { accessToken, refreshToken, newUser };
   } catch (error) {
     console.error(`[${CURRENT_TIMESTAMP}] Error handling Google callback:`, error);
     throw error;
@@ -182,34 +211,49 @@ export async function handleGoogleCallback(code: string): Promise<{ token: strin
 
 /**
  * Generates a Facebook OAuth URL with proper handling for GitHub Codespaces
+ * and handles common Facebook authentication issues
  */
 export function getFacebookOAuthURL(): string {
-  const CURRENT_TIMESTAMP = "2025-05-14 04:56:23";
-  console.log(`[${CURRENT_TIMESTAMP}] Generating Facebook OAuth URL`);
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] Generating Facebook OAuth URL`);
+
+  // Validate required environment variables
+  if (!process.env.FACEBOOK_APP_ID) {
+    throw new Error('FACEBOOK_APP_ID is not defined in environment variables');
+  }
+  
+  if (!process.env.FACEBOOK_APP_SECRET) {
+    console.warn(`[${timestamp}] Warning: FACEBOOK_APP_SECRET is not defined`);
+  }
 
   // Base Facebook OAuth URL
   const rootUrl = 'https://www.facebook.com/v16.0/dialog/oauth';
   
   // Determine base URL for the application
-  // First check for GitHub Codespaces environment
-  let baseUrl: string;
+  let baseUrl = '';
+  
   if (process.env.CODESPACE_NAME) {
+    // GitHub Codespaces - use port 3000 variant
     baseUrl = `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
-    console.log(`[${CURRENT_TIMESTAMP}] Using GitHub Codespaces URL: ${baseUrl}`);
+    console.log(`[${timestamp}] Using GitHub Codespaces URL: ${baseUrl}`);
   } else {
+    // Standard environment
     baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    console.log(`[${CURRENT_TIMESTAMP}] Using standard URL: ${baseUrl}`);
+    console.log(`[${timestamp}] Using standard URL: ${baseUrl}`);
   }
   
   // Ensure baseUrl doesn't have a trailing slash
   baseUrl = baseUrl.replace(/\/$/, '');
   
-  // Construct the full redirect URI
+  // Construct the full redirect URI - CRITICAL for Facebook
   const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
-  console.log(`[${CURRENT_TIMESTAMP}] Facebook redirect URI: ${redirectUri}`);
+  console.log(`[${timestamp}] Facebook redirect URI: ${redirectUri}`);
   
-  // Additional state parameter for security and tracking
-  const state = Buffer.from(`${Date.now()}-${Math.random().toString(36).substring(2,15)}`).toString('base64');
+  // State parameter for CSRF protection
+  const state = Buffer.from(JSON.stringify({
+    ts: Date.now(),
+    nonce: Math.random().toString(36).substring(2,15)
+  })).toString('base64');
   
   // Construct parameters for Facebook OAuth
   const options = {
@@ -218,7 +262,7 @@ export function getFacebookOAuthURL(): string {
     scope: 'email,public_profile',
     response_type: 'code',
     auth_type: 'rerequest',
-    display: 'popup',
+    display: 'page', // Use 'page' for full-page redirect
     state
   };
 
@@ -226,15 +270,14 @@ export function getFacebookOAuthURL(): string {
   const qs = new URLSearchParams(options);
   const finalUrl = `${rootUrl}?${qs.toString()}`;
   
-  console.log(`[${CURRENT_TIMESTAMP}] Generated Facebook OAuth URL with parameters:`, { 
-    client_id: process.env.FACEBOOK_APP_ID || '[REDACTED]',
-    redirect_uri: redirectUri,
-    state: state.substring(0, 10) + '...'
+  console.log(`[${timestamp}] Generated Facebook OAuth URL with parameters:`, { 
+    client_id: options.client_id.substring(0, 5) + '...',
+    redirect_uri: options.redirect_uri,
+    state: options.state.substring(0, 10) + '...'
   });
   
   return finalUrl;
 }
-
 // Get Facebook OAuth tokens
 async function getFacebookOAuthTokens(code: string): Promise<any> {
   try {
@@ -283,7 +326,7 @@ async function getFacebookUserInfo(access_token: string): Promise<any> {
 }
 
 // Handle Facebook callback
-export async function handleFacebookCallback(code: string): Promise<{ token: string, newUser: boolean }> {
+export async function handleFacebookCallback(code: string): Promise<{ accessToken: string, refreshToken: string, newUser: boolean }> {
   try {
     console.log(`[${CURRENT_TIMESTAMP}] Processing Facebook OAuth callback`);
     
@@ -358,10 +401,33 @@ export async function handleFacebookCallback(code: string): Promise<{ token: str
       console.log(`[${CURRENT_TIMESTAMP}] Existing Facebook user logged in: ${user.email} (${user._id})`);
     }
     
-    // 7. Generate JWT token
-    const token = generateAccessToken(user);
+    // 7. Convert Mongoose document to plain object - THIS IS THE CRITICAL FIX
+    const userObject = user.toObject ? user.toObject() : JSON.parse(JSON.stringify(user));
     
-    return { token, newUser };
+    // 8. Create properly structured JWT payload
+    const jwtPayload: JwtPayload = {
+      userId: userObject._id.toString(),
+      name: userObject.name,
+      email: userObject.email,
+      role: userObject.role,
+      tokenType: 'access'
+    };
+    
+    // 9. Generate tokens with plain objects
+    const accessToken = generateAccessToken(jwtPayload);
+  const refreshPayload: JwtPayload = {
+    userId: userObject._id.toString(),
+    name: userObject.name,
+    email: userObject.email,
+    role: userObject.role,
+    tokenType: 'refresh'
+  };
+
+  const refreshToken = generateRefreshToken(refreshPayload);
+    
+    console.log(`[${CURRENT_TIMESTAMP}] Generated auth tokens for: ${userObject.email}`);
+    
+    return { accessToken, refreshToken, newUser };
   } catch (error) {
     console.error(`[${CURRENT_TIMESTAMP}] Error handling Facebook callback:`, error);
     throw error;
