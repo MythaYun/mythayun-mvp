@@ -2,11 +2,46 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { IUser } from '@/lib/models/User';
 
-// Updated system information
-const CURRENT_TIMESTAMP = "2025-05-16 11:16:22";
-const CURRENT_USER = "Sdiabate1337";
+// Define proper preference types
+interface NotificationPreferences {
+  matchReminders: boolean;
+  scoreUpdates: boolean;
+  newsAlerts: boolean;
+}
+
+interface DisplayPreferences {
+  darkMode: boolean;
+  compactView: boolean;
+}
+
+interface UserPreferences {
+  notificationPreferences: NotificationPreferences;
+  displayPreferences: DisplayPreferences;
+  favoriteLeagues: string[];
+  favoriteTeams: string[];
+  favoriteMatches: string[]; // This property is required
+}
+
+// Define the IUser interface with preferences
+interface IUser {
+  _id: string;
+  name: string;
+  email: string;
+  password?: string;
+  role: string;
+  isVerified: boolean;
+  isNewUser?: boolean;
+  isFirstLogin?: boolean;
+  hasCompletedOnboarding?: boolean;
+  lastLogin?: Date | string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  authProvider?: string;
+  googleId?: string;
+  profilePicture?: string;
+  preferences?: UserPreferences;
+}
 
 // Type definitions for authentication functions
 interface LoginResponse {
@@ -14,6 +49,11 @@ interface LoginResponse {
   user?: Partial<IUser>;
   error?: string;
   requiresEmailVerification?: boolean;
+}
+
+interface PasswordUpdatePayload {
+  password: string;
+  currentPassword: string;
 }
 
 interface RegisterData {
@@ -27,7 +67,7 @@ interface AuthContextType {
   user: Partial<IUser> | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  authCheckComplete: boolean;  // Add this to track when auth check is complete
+  authCheckComplete: boolean;
   login: (email: string, password: string) => Promise<LoginResponse>;
   register: (data: RegisterData) => Promise<LoginResponse>;
   updateUser: (user: Partial<IUser> | null | undefined) => void;
@@ -36,14 +76,19 @@ interface AuthContextType {
   handleSocialLoginSuccess: (userData: Partial<IUser>) => void;
   authError: string | null;
   clearAuthError: () => void;
-  updateUserPreferences: (preferences: any) => Promise<void>;
   showOnboarding: boolean; 
   setShowOnboarding: (value: boolean) => void;
-  completeOnboarding: (preferences?: any) => Promise<void>;
+  completeOnboarding: (preferences?: UserPreferences) => Promise<void>;
+  updateUserProfile: (profileData: Partial<IUser> | PasswordUpdatePayload) => Promise<void>;
+  updateUserPreferences: (preferences: UserPreferences) => Promise<void>;
 }
 
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Current system information
+const CURRENT_TIMESTAMP = new Date().toISOString();
+const CURRENT_USER = "Sdiabate1337";
 
 // Authentication provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
-  const [authCheckComplete, setAuthCheckComplete] = useState<boolean>(false); // Add this state
+  const [authCheckComplete, setAuthCheckComplete] = useState<boolean>(false);
   
   // Refs for tracking states
   const initialAuthCheckDone = useRef<boolean>(false);
@@ -68,54 +113,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
   }, []);
 
-// Updated checkOnboardingStatus function with better logging
-const checkOnboardingStatus = useCallback((userData: Partial<IUser> | null) => {
-  const timestamp = new Date().toISOString(); // Use current timestamp
-  
-  if (!userData) {
-    console.log(`[${timestamp}] No user data provided to checkOnboardingStatus`);
-    setShowOnboarding(false);
-    return false;
-  }
-  
-  console.log(`[${timestamp}] Checking onboarding status for: ${userData.email}`);
-  console.log(`[${timestamp}] User properties:`, {
-    isNewUser: userData.isNewUser,
-    hasCompletedOnboarding: userData.hasCompletedOnboarding,
-    isFirstLogin: userData.isFirstLogin,
-    lastLogin: userData.lastLogin ? new Date(userData.lastLogin).toISOString() : 'none'
-  });
-  
-  // Priority 1: URL parameter takes precedence
-  const urlHasWelcome = typeof window !== 'undefined' && 
-    window.location.search.includes('welcome=true');
-  
-  if (urlHasWelcome) {
-    console.log(`[${timestamp}] 'welcome=true' parameter found in URL, enabling onboarding`);
-    setShowOnboarding(true);
-    return true;
-  }
-  
-  // Priority 2: User properties check
-  const isExplicitlyNewUser = userData.isNewUser === true;
-  const hasNotCompletedOnboarding = userData.hasCompletedOnboarding !== true;
-  const isFirstLogin = userData.isFirstLogin === true;
-  
-  // Make the decision
-  const shouldShowOnboarding = 
-    (isExplicitlyNewUser || isFirstLogin) && 
-    hasNotCompletedOnboarding;
-  
-  console.log(`[${timestamp}] Onboarding decision:`, {
-    isExplicitlyNewUser,
-    isFirstLogin,
-    hasNotCompletedOnboarding,
-    decision: shouldShowOnboarding
-  });
-  
-  setShowOnboarding(shouldShowOnboarding);
-  return shouldShowOnboarding;
-}, []);
+  // Updated checkOnboardingStatus function with better logging
+  const checkOnboardingStatus = useCallback((userData: Partial<IUser> | null) => {
+    const timestamp = new Date().toISOString();
+    
+    if (!userData) {
+      console.log(`[${timestamp}] No user data provided to checkOnboardingStatus`);
+      setShowOnboarding(false);
+      return false;
+    }
+    
+    console.log(`[${timestamp}] Checking onboarding status for: ${userData.email}`);
+    console.log(`[${timestamp}] User properties:`, {
+      isNewUser: userData.isNewUser,
+      hasCompletedOnboarding: userData.hasCompletedOnboarding,
+      isFirstLogin: userData.isFirstLogin,
+      lastLogin: userData.lastLogin ? new Date(userData.lastLogin).toISOString() : 'none'
+    });
+    
+    // Priority 1: URL parameter takes precedence
+    const urlHasWelcome = typeof window !== 'undefined' && 
+      window.location.search.includes('welcome=true');
+    
+    if (urlHasWelcome) {
+      console.log(`[${timestamp}] 'welcome=true' parameter found in URL, enabling onboarding`);
+      setShowOnboarding(true);
+      return true;
+    }
+    
+    // Priority 2: User properties check
+    const isExplicitlyNewUser = userData.isNewUser === true;
+    const hasNotCompletedOnboarding = userData.hasCompletedOnboarding !== true;
+    const isFirstLogin = userData.isFirstLogin === true;
+    
+    // Make the decision
+    const shouldShowOnboarding = 
+      (isExplicitlyNewUser || isFirstLogin) && 
+      hasNotCompletedOnboarding;
+    
+    console.log(`[${timestamp}] Onboarding decision:`, {
+      isExplicitlyNewUser,
+      isFirstLogin,
+      hasNotCompletedOnboarding,
+      decision: shouldShowOnboarding
+    });
+    
+    setShowOnboarding(shouldShowOnboarding);
+    return shouldShowOnboarding;
+  }, []);
 
   // Function to check authentication status with timeout protection
   const checkAuth = useCallback(async () => {
@@ -136,9 +181,9 @@ const checkOnboardingStatus = useCallback((userData: Partial<IUser> | null) => {
       console.error(`[${CURRENT_TIMESTAMP}] Auth check timed out after 8 seconds`);
       refreshInProgress.current = false;
       setIsLoading(false);
-      setAuthCheckComplete(true); // Mark auth check as complete even if it timed out
+      setAuthCheckComplete(true);
       initialAuthCheckDone.current = true;
-    }, 8000); // 8 seconds timeout
+    }, 8000);
     
     try {
       refreshInProgress.current = true;
@@ -165,7 +210,7 @@ const checkOnboardingStatus = useCallback((userData: Partial<IUser> | null) => {
           // Check if user is verified
           if (data.user.isVerified === false) {
             console.log(`[${CURRENT_TIMESTAMP}] User not verified yet: ${data.user.email}`);
-            setUser(null); // Don't set user if not verified
+            setUser(null);
             setShowOnboarding(false);
             return null;
           }
@@ -215,105 +260,72 @@ const checkOnboardingStatus = useCallback((userData: Partial<IUser> | null) => {
       }
       
       setIsLoading(false);
-      setAuthCheckComplete(true); // Mark auth check as complete
+      setAuthCheckComplete(true);
       setLastRefresh(Date.now());
       refreshInProgress.current = false;
       initialAuthCheckDone.current = true;
     }
   }, [checkOnboardingStatus]);
 
-// Login function with improved error handling and verification check
-const login = async (email: string, password: string): Promise<LoginResponse> => {
-  try {
-    setAuthError(null); // Clear previous errors
-    setIsLoading(true);
-    
-    console.log(`[${CURRENT_TIMESTAMP}] Attempting login for: ${email}`);
-    
-    // Use JSON format for consistency
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-      credentials: 'include', // Important: This ensures cookies are stored
-    });
-    
-    // Always try to parse the response body
-    let data;
+  // Login function with improved error handling and verification check
+  const login = async (email: string, password: string): Promise<LoginResponse> => {
     try {
-      data = await response.json();
-    } catch (e) {
-      console.error(`[${CURRENT_TIMESTAMP}] Failed to parse login response:`, e);
-      throw new Error('Erreur serveur: Réponse invalide');
-    }
-    
-    if (!response.ok) {
-      // Check specifically for verification errors
-      if (data?.requiresEmailVerification || 
-          data?.message?.toLowerCase().includes('vérifi') || 
-          data?.message?.toLowerCase().includes('verif')) {
-        console.log(`[${CURRENT_TIMESTAMP}] Login failed - email verification required: ${email}`);
+      setAuthError(null);
+      setIsLoading(true);
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Attempting login for: ${email}`);
+      
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      });
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error(`[${CURRENT_TIMESTAMP}] Failed to parse login response:`, e);
+        throw new Error('Erreur serveur: Réponse invalide');
+      }
+      
+      if (!response.ok) {
+        // Check specifically for verification errors
+        if (data?.requiresEmailVerification || 
+            data?.message?.toLowerCase().includes('vérifi') || 
+            data?.message?.toLowerCase().includes('verif')) {
+          console.log(`[${CURRENT_TIMESTAMP}] Login failed - email verification required: ${email}`);
+          return { 
+            success: false, 
+            requiresEmailVerification: true,
+            error: data?.message || "Veuillez vérifier votre adresse email avant de vous connecter"
+          };
+        }
+        
+        // Handle other errors
+        const errorMessage = data?.message || `Échec de la connexion: ${response.status}`;
+        console.error(`[${CURRENT_TIMESTAMP}] Login error: ${errorMessage}`);
+        throw new Error(errorMessage);
+      }
+      
+      // Check if the server explicitly indicated email verification is required
+      if (data.requiresEmailVerification) {
+        console.log(`[${CURRENT_TIMESTAMP}] Server indicated email verification required for: ${email}`);
         return { 
           success: false, 
           requiresEmailVerification: true,
-          error: data?.message || "Veuillez vérifier votre adresse email avant de vous connecter"
+          error: data.message || "Veuillez vérifier votre adresse email avant de vous connecter" 
         };
       }
       
-      // Handle other errors
-      const errorMessage = data?.message || `Échec de la connexion: ${response.status}`;
-      console.error(`[${CURRENT_TIMESTAMP}] Login error: ${errorMessage}`);
-      throw new Error(errorMessage);
-    }
-    
-    // Check if the server explicitly indicated email verification is required
-    if (data.requiresEmailVerification) {
-      console.log(`[${CURRENT_TIMESTAMP}] Server indicated email verification required for: ${email}`);
-      return { 
-        success: false, 
-        requiresEmailVerification: true,
-        error: data.message || "Veuillez vérifier votre adresse email avant de vous connecter" 
-      };
-    }
-    
-    // Successful login with user data
-    if (data.success && data.user) {
-      // Double-check if user is verified (belt and suspenders approach)
-      if (data.user.isVerified === false) {
-        console.log(`[${CURRENT_TIMESTAMP}] Login rejected - user not verified: ${email}`);
-        return { 
-          success: false, 
-          requiresEmailVerification: true,
-          error: "Veuillez vérifier votre adresse email avant de vous connecter" 
-        };
-      }
-      
-      // User is verified - proceed with authentication
-      const userData = data.user;
-      
-      // Set user as authenticated
-      setUser(userData);
-      
-      // Then check if onboarding is needed
-      const shouldOnboard = checkOnboardingStatus(userData);
-      
-      console.log(`[${CURRENT_TIMESTAMP}] Login successful for: ${email}, needs onboarding: ${shouldOnboard}`);
-      return { success: true, user: userData };
-    } 
-    // Success response but no user data included
-    else if (data.success) {
-      console.log(`[${CURRENT_TIMESTAMP}] Login successful but user data not included, fetching...`);
-      
-      // Refresh user data to get the complete user object
-      const userData = await checkAuth();
-      
-      if (userData) {
-        // Double-check verification status on the fetched user
-        if (userData.isVerified === false) {
-          console.log(`[${CURRENT_TIMESTAMP}] Fetched user is not verified: ${email}`);
-          setUser(null); // Clear any user data
+      // Successful login with user data
+      if (data.success && data.user) {
+        // Double-check if user is verified
+        if (data.user.isVerified === false) {
+          console.log(`[${CURRENT_TIMESTAMP}] Login rejected - user not verified: ${email}`);
           return { 
             success: false, 
             requiresEmailVerification: true,
@@ -321,30 +333,62 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
           };
         }
         
+        // User is verified - proceed with authentication
+        const userData = data.user;
+        
+        // Set user as authenticated
+        setUser(userData);
+        
+        // Then check if onboarding is needed
+        const shouldOnboard = checkOnboardingStatus(userData);
+        
+        console.log(`[${CURRENT_TIMESTAMP}] Login successful for: ${email}, needs onboarding: ${shouldOnboard}`);
         return { success: true, user: userData };
-      } else {
-        throw new Error('Échec de récupération des données utilisateur après connexion');
+      } 
+      // Success response but no user data included
+      else if (data.success) {
+        console.log(`[${CURRENT_TIMESTAMP}] Login successful but user data not included, fetching...`);
+        
+        // Refresh user data to get the complete user object
+        const userData = await checkAuth();
+        
+        if (userData) {
+          // Double-check verification status on the fetched user
+          if (userData.isVerified === false) {
+            console.log(`[${CURRENT_TIMESTAMP}] Fetched user is not verified: ${email}`);
+            setUser(null);
+            return { 
+              success: false, 
+              requiresEmailVerification: true,
+              error: "Veuillez vérifier votre adresse email avant de vous connecter" 
+            };
+          }
+          
+          return { success: true, user: userData };
+        } else {
+          throw new Error('Échec de récupération des données utilisateur après connexion');
+        }
+      } 
+      // Generic failure case
+      else {
+        console.log(`[${CURRENT_TIMESTAMP}] Login returned success:false: ${data.message}`);
+        setAuthError(data.message || 'Échec de l\'authentification');
+        return { 
+          success: false, 
+          error: data.message || 'Échec de l\'authentification' 
+        };
       }
-    } 
-    // Generic failure case
-    else {
-      console.log(`[${CURRENT_TIMESTAMP}] Login returned success:false: ${data.message}`);
-      setAuthError(data.message || 'Échec de l\'authentification');
-      return { 
-        success: false, 
-        error: data.message || 'Échec de l\'authentification' 
-      };
+    } catch (error) {
+      // Log and format error
+      console.error(`[${CURRENT_TIMESTAMP}] Login exception:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur serveur lors de la connexion';
+      setAuthError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    // Log and format error
-    console.error(`[${CURRENT_TIMESTAMP}] Login exception:`, error);
-    const errorMessage = error instanceof Error ? error.message : 'Erreur serveur lors de la connexion';
-    setAuthError(errorMessage);
-    return { success: false, error: errorMessage };
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
+
   // Register function with proper email verification flow
   const register = useCallback(async (data: RegisterData): Promise<LoginResponse> => {
     setIsLoading(true);
@@ -369,9 +413,6 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
       }
       
       console.log(`[${CURRENT_TIMESTAMP}] Registration successful for: ${data.email}`);
-      
-      // IMPORTANT: Do NOT set the user here - registration doesn't mean authentication
-      // User needs to verify their email first
       
       // Return success but don't authenticate
       return { 
@@ -404,7 +445,7 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
     setUser(userData);
     
     // Check if user needs onboarding - for social auth, make it explicit
-    const shouldOnboard = true; // Force onboarding for social logins to ensure visibility
+    const shouldOnboard = true;
     setShowOnboarding(shouldOnboard);
     
     // Set redirect pending flag
@@ -517,8 +558,36 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
     }
   }, [router]);
   
-  // Update user preferences function
-  const updateUserPreferences = useCallback(async (preferences: any) => {
+  // Helper function to ensure we have complete preferences - FIXED HERE
+  const ensureCompletePreferences = (preferences: any): UserPreferences => {
+    const defaultNotificationPreferences: NotificationPreferences = {
+      matchReminders: true,
+      scoreUpdates: true,
+      newsAlerts: false
+    };
+
+    const defaultDisplayPreferences: DisplayPreferences = {
+      darkMode: true,
+      compactView: false
+    };
+
+    return {
+      notificationPreferences: {
+        ...defaultNotificationPreferences,
+        ...(preferences?.notificationPreferences || {})
+      },
+      displayPreferences: {
+        ...defaultDisplayPreferences,
+        ...(preferences?.displayPreferences || {})
+      },
+      favoriteLeagues: preferences?.favoriteLeagues || [],
+      favoriteTeams: preferences?.favoriteTeams || [],
+      favoriteMatches: preferences?.favoriteMatches || [] // Added the missing favoriteMatches property
+    };
+  };
+
+  // Update user preferences function with proper typing
+  const updateUserPreferences = useCallback(async (preferences: UserPreferences) => {
     try {
       if (!user) {
         console.error(`[${CURRENT_TIMESTAMP}] Cannot update preferences: No authenticated user`);
@@ -528,6 +597,9 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
       console.log(`[${CURRENT_TIMESTAMP}] Updating user preferences`);
       setIsLoading(true);
       
+      // Ensure preferences are complete
+      const completePreferences = ensureCompletePreferences(preferences);
+      
       // API call to update user preferences
       const response = await fetch('/api/user/preferences', {
         method: 'PUT',
@@ -536,7 +608,7 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
           'Cache-Control': 'no-cache'
         },
         credentials: 'include', // Include cookies for authentication
-        body: JSON.stringify(preferences),
+        body: JSON.stringify(completePreferences),
       });
       
       // Handle errors
@@ -557,9 +629,9 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
           
           return { 
             ...prevUser, 
-            preferences,
-            hasCompletedOnboarding: true, // Mark onboarding as complete
-            isNewUser: false // No longer a new user
+            preferences: completePreferences,
+            hasCompletedOnboarding: true, 
+            isNewUser: false 
           };
         });
         
@@ -580,98 +652,190 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
     }
   }, [user]);
 
-// Complete onboarding function with proper preferences handling
-const completeOnboarding = useCallback(async (preferences?: any) => {
+// Update the updateUserProfile function to handle errors better
+const updateUserProfile = useCallback(async (profileData: Partial<IUser> | PasswordUpdatePayload) => {
   try {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] Marking onboarding as complete`);
-    
     if (!user) {
-      console.error(`[${timestamp}] Cannot complete onboarding: No authenticated user`);
-      setShowOnboarding(false);
+      throw new Error("User not authenticated");
+    }
+    
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Updating user profile:`, profileData);
+    
+    // Check if this is a password update (has currentPassword)
+    const isPasswordUpdate = 'currentPassword' in profileData;
+    
+    const endpoint = isPasswordUpdate ? '/api/user/password' : '/api/user/profile';
+    
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      credentials: 'include',
+      body: JSON.stringify(profileData),
+    });
+    
+    // Improved error handling
+    if (!response.ok) {
+      // Log the error status for debugging
+      console.error(`[${timestamp}] Error status: ${response.status}`);
+      
+      let errorMessage = `Failed to update profile: ${response.status}`;
+      
+      try {
+        // Try to parse the JSON error response safely
+        const errorData = await response.json();
+        
+        if (errorData && typeof errorData === 'object' && 'message' in errorData) {
+          errorMessage = errorData.message || errorMessage;
+        }
+        
+        console.error(`[${timestamp}] Error details:`, errorData);
+      } catch (parseError) {
+        // If JSON parsing fails, try to get the text content
+        try {
+          const errorText = await response.text();
+          console.error(`[${timestamp}] Error text:`, errorText);
+        } catch (textError) {
+          console.error(`[${timestamp}] Could not read error response`);
+        }
+      }
+      
+      // Throw a formatted error with the message
+      throw new Error(errorMessage);
+    }
+    
+    // Parse the successful response
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error(`[${timestamp}] Error parsing success response:`, parseError);
+      throw new Error('Invalid response from server');
+    }
+    
+    // Update user state if we got valid data
+    if (data && data.success && data.user) {
+      // Update local user state
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        return {
+          ...prevUser,
+          ...data.user
+        };
+      });
+      
+      console.log(`[${timestamp}] User profile updated successfully`);
+    } else {
+      console.warn(`[${timestamp}] Response was OK but data format is unexpected:`, data);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in updateUserProfile:`, error);
+    // Rethrow the error for the component to handle
+    throw error;
+  }
+}, [user, setUser]);
+
+  // Complete onboarding function with proper preferences handling
+  const completeOnboarding = useCallback(async (preferences?: UserPreferences) => {
+    try {
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] Marking onboarding as complete`);
+      
+      if (!user) {
+        console.error(`[${timestamp}] Cannot complete onboarding: No authenticated user`);
+        setShowOnboarding(false);
+        
+        // Clear welcome parameter from URL if present
+        if (typeof window !== 'undefined' && window.location.search.includes('welcome')) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        
+        return;
+      }
+      
+      // Get current preferences and add defaults
+      const currentPrefs = user?.preferences || {
+        favoriteLeagues: [],
+        favoriteTeams: [],
+        favoriteMatches: [], // Make sure we include favoriteMatches here too
+        notificationPreferences: {
+          matchReminders: true,
+          scoreUpdates: true,
+          newsAlerts: false
+        },
+        displayPreferences: {
+          darkMode: true,
+          compactView: false
+        }
+      };
+      
+      // Use provided preferences or fallback to defaults
+      const finalPreferences = ensureCompletePreferences(preferences || currentPrefs);
+      
+      // Detailed logging
+      console.log(`[${timestamp}] Completing onboarding for user: ${user.email}`);
+      console.log(`[${timestamp}] Using preferences:`, JSON.stringify(finalPreferences));
+      
+      // Update user preferences via API call
+      const response = await fetch('/api/user/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        credentials: 'include', // Important: Include cookies for auth
+        body: JSON.stringify(finalPreferences),
+      });
+      
+      // Parse response data
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error(`[${timestamp}] Failed to update preferences: ${data.message || response.status}`);
+        throw new Error(data.message || `Server error: ${response.status}`);
+      }
+      
+      console.log(`[${timestamp}] API response:`, JSON.stringify(data));
+      
+      if (data.success && data.user) {
+        // Update local user state with the returned data
+        setUser(prevUser => {
+          if (!prevUser) return null;
+          
+          return { 
+            ...prevUser, 
+            preferences: finalPreferences,
+            hasCompletedOnboarding: true,
+            isNewUser: false
+          };
+        });
+        
+        console.log(`[${timestamp}] User preferences updated successfully`);
+        setShowOnboarding(false);
+      } else {
+        console.warn(`[${timestamp}] Preferences update returned success:true but no user data`);
+      }
       
       // Clear welcome parameter from URL if present
       if (typeof window !== 'undefined' && window.location.search.includes('welcome')) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
       
-      return;
-    }
-    
-    // Use provided preferences or fallback to defaults if needed
-    const finalPreferences = preferences || user.preferences || {
-      favoriteLeagues: [],
-      favoriteTeams: [],
-      notificationPreferences: {
-        matchReminders: true,
-        scoreUpdates: true,
-        newsAlerts: false
-      },
-      displayPreferences: {
-        darkMode: true,
-        compactView: false
-      }
-    };
-    
-    // Detailed logging
-    console.log(`[${timestamp}] Completing onboarding for user: ${user.email}`);
-    console.log(`[${timestamp}] Using preferences:`, JSON.stringify(finalPreferences));
-    
-    // Update user preferences via API call
-    const response = await fetch('/api/user/preferences', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
-      },
-      credentials: 'include', // Important: Include cookies for auth
-      body: JSON.stringify(finalPreferences),
-    });
-    
-    // Parse response data
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error(`[${timestamp}] Failed to update preferences: ${data.message || response.status}`);
-      throw new Error(data.message || `Server error: ${response.status}`);
-    }
-    
-    console.log(`[${timestamp}] API response:`, JSON.stringify(data));
-    
-    if (data.success && data.user) {
-      // Update local user state with the returned data
-      setUser(prevUser => {
-        if (!prevUser) return null;
-        
-        return { 
-          ...prevUser, 
-          preferences: data.user.preferences,
-          hasCompletedOnboarding: true,
-          isNewUser: false
-        };
-      });
-      
-      console.log(`[${timestamp}] User preferences updated successfully`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Error completing onboarding:`, error);
+      // Even on error, hide onboarding UI to prevent getting stuck
       setShowOnboarding(false);
-    } else {
-      console.warn(`[${timestamp}] Preferences update returned success:true but no user data`);
+      
+      // Set error message
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setAuthError(`Erreur lors de la finalisation de l'onboarding: ${errorMessage}`);
     }
-    
-    // Clear welcome parameter from URL if present
-    if (typeof window !== 'undefined' && window.location.search.includes('welcome')) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error completing onboarding:`, error);
-    // Even on error, hide onboarding UI to prevent getting stuck
-    setShowOnboarding(false);
-    
-    // Set error message
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    setAuthError(`Erreur lors de la finalisation de l'onboarding: ${errorMessage}`);
-  }
-}, [user, setUser, setAuthError]);
+  }, [user]);
 
   // New effect for detecting welcome parameter in URL
   useEffect(() => {
@@ -734,7 +898,7 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
         refreshUser(true);
       }
     }
-  }, [refreshUser]); // Added refreshUser as dependency
+  }, [refreshUser]);
 
   // Initial authentication check
   useEffect(() => {
@@ -754,11 +918,11 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
         if (isLoading) {
           console.warn(`[${CURRENT_TIMESTAMP}] Loading state persisted for too long, resetting`);
           setIsLoading(false);
-          setAuthCheckComplete(true); // Mark auth check as complete
+          setAuthCheckComplete(true);
           refreshInProgress.current = false;
           initialAuthCheckDone.current = true;
         }
-      }, 10000); // 10 seconds timeout
+      }, 10000);
     }
     
     return () => {
@@ -771,7 +935,7 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
     user,
     isAuthenticated: !!user,
     isLoading,
-    authCheckComplete, // Add this to the context
+    authCheckComplete,
     login,
     register,
     updateUser,
@@ -783,7 +947,8 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
     updateUserPreferences,
     showOnboarding,
     setShowOnboarding,
-    completeOnboarding
+    completeOnboarding,
+    updateUserProfile,
   };
 
   return (

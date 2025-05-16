@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import OnboardingWizard from '../components/onboarding/OnboardingWizard'; 
+import SettingsTab from './SettingsTab';
+import FavoritesTab from './FavoritesTab'; 
+import EventsTab from './EventsTab';
+import DashboardTab from './DashboardTab';
+
 import { 
   FiUser, FiLogOut, FiHome, FiSettings, FiCalendar, 
   FiMessageCircle, FiHeart, FiActivity, FiMenu, FiX 
@@ -123,8 +128,6 @@ export default function Dashboard() {
         return <EventsTab />;
       case 'favorites':
         return <FavoritesTab />;
-      case 'messages':
-        return <MessagesTab />;
       case 'settings':
         return <SettingsTab />;
       case 'dashboard':
@@ -222,13 +225,6 @@ export default function Dashboard() {
                 <span className="text-lg">Favoris</span>
               </button>
               <button 
-                onClick={() => {setActiveTab('messages'); setMobileMenuOpen(false);}}
-                className="w-full flex items-center gap-3 p-4 rounded-xl transition-colors text-white bg-slate-800 hover:bg-slate-700"
-              >
-                <FiMessageCircle size={22} />
-                <span className="text-lg">Messages</span>
-              </button>
-              <button 
                 onClick={() => {setActiveTab('settings'); setMobileMenuOpen(false);}}
                 className="w-full flex items-center gap-3 p-4 rounded-xl transition-colors text-white bg-slate-800 hover:bg-slate-700"
               >
@@ -298,12 +294,6 @@ export default function Dashboard() {
                   <span>Favoris</span>
                 </button>
                 <button 
-                  onClick={() => setActiveTab('messages')}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'messages' ? 'text-indigo-400 bg-slate-700/50' : 'text-slate-300 hover:bg-slate-700/30'}`}>
-                  <FiMessageCircle className={activeTab === 'messages' ? "text-indigo-400" : "text-slate-400"} />
-                  <span>Messages</span>
-                </button>
-                <button 
                   onClick={() => setActiveTab('settings')}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'settings' ? 'text-indigo-400 bg-slate-700/50' : 'text-slate-300 hover:bg-slate-700/30'}`}>
                   <FiSettings className={activeTab === 'settings' ? "text-indigo-400" : "text-slate-400"} />
@@ -367,13 +357,6 @@ export default function Dashboard() {
             <span className="text-xs mt-1">Favoris</span>
           </button>
           <button 
-            onClick={() => setActiveTab('messages')}
-            className={`flex flex-col items-center justify-center ${activeTab === 'messages' ? 'text-indigo-400' : 'text-slate-400'}`}
-          >
-            <FiMessageCircle size={20} />
-            <span className="text-xs mt-1">Messages</span>
-          </button>
-          <button 
             onClick={() => setActiveTab('settings')}
             className={`flex flex-col items-center justify-center ${activeTab === 'settings' ? 'text-indigo-400' : 'text-slate-400'}`}
           >
@@ -402,198 +385,3 @@ export default function Dashboard() {
   );
 }
 
-// Tab component definitions
-const DashboardTab = () => (
-  <div className="space-y-6">
-    <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
-      <h2 className="text-xl font-bold mb-5 text-white">Tableaux de bord personnels</h2>
-      <p className="text-slate-400 mb-4">Bienvenue sur votre espace personnel. Voici un aperçu de votre activité récente et des événements à venir.</p>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-slate-700/50 rounded-xl p-4 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-medium text-indigo-400">Matchs suivis</h3>
-            <span className="text-slate-300 font-bold text-xl">5</span>
-          </div>
-          <p className="text-sm text-slate-400">Prochain match: PSG vs. Real Madrid</p>
-        </div>
-        <div className="bg-slate-700/50 rounded-xl p-4 border border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-medium text-indigo-400">Soirées football</h3>
-            <span className="text-slate-300 font-bold text-xl">2</span>
-          </div>
-          <p className="text-sm text-slate-400">Prochainement: Finale Champions League</p>
-        </div>
-      </div>
-      
-      <h3 className="text-lg font-bold mb-4 text-white">Événements à venir</h3>
-      <div className="space-y-3">
-        <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors cursor-pointer">
-          <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-            <FiCalendar size={20} />
-          </div>
-          <div className="flex-grow">
-            <h4 className="font-medium text-white">Champions League</h4>
-            <p className="text-sm text-slate-400">20 mai 2025 • 20:45</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors cursor-pointer">
-          <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-            <FiCalendar size={20} />
-          </div>
-          <div className="flex-grow">
-            <h4 className="font-medium text-white">Premier League</h4>
-            <p className="text-sm text-slate-400">23 mai 2025 • 16:00</p>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
-      <h2 className="text-xl font-bold mb-4 text-white">Statistiques d'utilisation</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="p-3 rounded-xl bg-slate-700/30 text-center">
-          <h3 className="text-3xl font-bold text-indigo-400">12</h3>
-          <p className="text-sm text-slate-400">Visites</p>
-        </div>
-        <div className="p-3 rounded-xl bg-slate-700/30 text-center">
-          <h3 className="text-3xl font-bold text-indigo-400">5</h3>
-          <p className="text-sm text-slate-400">Matchs</p>
-        </div>
-        <div className="p-3 rounded-xl bg-slate-700/30 text-center">
-          <h3 className="text-3xl font-bold text-indigo-400">3</h3>
-          <p className="text-sm text-slate-400">Commentaires</p>
-        </div>
-        <div className="p-3 rounded-xl bg-slate-700/30 text-center">
-          <h3 className="text-3xl font-bold text-indigo-400">8</h3>
-          <p className="text-sm text-slate-400">Favoris</p>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-// Placeholder components for other tabs
-const EventsTab = () => (
-  <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
-    <h2 className="text-xl font-bold mb-6 text-white">Mes Événements</h2>
-    <p className="text-slate-400 mb-4">Retrouvez ici tous vos événements à venir et passés.</p>
-    
-    <div className="space-y-4">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
-          <div className="flex-shrink-0 w-14 h-14 rounded-lg bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-            <FiCalendar size={22} />
-          </div>
-          <div className="flex-grow">
-            <h4 className="font-medium text-white">Événement de football #{i}</h4>
-            <p className="text-sm text-slate-400">{20 + i} mai 2025 • 19:00</p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-xs">À venir</span>
-              <span className="px-2 py-0.5 bg-slate-600/40 text-slate-300 rounded text-xs">12 participants</span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const FavoritesTab = () => (
-  <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
-    <h2 className="text-xl font-bold mb-6 text-white">Mes Favoris</h2>
-    <p className="text-slate-400 mb-4">Accédez rapidement à vos équipes et matchs favoris.</p>
-    
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="bg-slate-700/30 rounded-xl p-4 hover:bg-slate-700/50 transition-colors">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-              <FiHeart size={18} />
-            </div>
-            <h3 className="font-medium text-white">Équipe favorite #{i}</h3>
-          </div>
-          <p className="text-sm text-slate-400">Prochain match le {18 + i} mai 2025</p>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const MessagesTab = () => (
-  <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
-    <h2 className="text-xl font-bold mb-6 text-white">Messages</h2>
-    <p className="text-slate-400 mb-4">Vos conversations avec d'autres passionnés de football.</p>
-    
-    <div className="space-y-3">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors cursor-pointer">
-          <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">
-            U{i}
-          </div>
-          <div className="flex-grow">
-            <div className="flex justify-between">
-              <h4 className="font-medium text-white">Utilisateur #{i}</h4>
-              <span className="text-xs text-slate-400">10:2{i} AM</span>
-            </div>
-            <p className="text-sm text-slate-400 truncate">Dernier message de la conversation avec cet utilisateur...</p>
-          </div>
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">
-            {i}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const SettingsTab = () => (
-  <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
-    <h2 className="text-xl font-bold mb-6 text-white">Paramètres</h2>
-    <p className="text-slate-400 mb-4">Personnalisez votre expérience Mythayun.</p>
-    
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <h3 className="text-lg font-medium text-white">Compte</h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
-            <span className="text-slate-300">Nom d'utilisateur</span>
-            <button className="text-indigo-400 hover:text-indigo-300">Modifier</button>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
-            <span className="text-slate-300">Adresse e-mail</span>
-            <button className="text-indigo-400 hover:text-indigo-300">Modifier</button>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
-            <span className="text-slate-300">Mot de passe</span>
-            <button className="text-indigo-400 hover:text-indigo-300">Modifier</button>
-          </div>
-        </div>
-      </div>
-      
-      <div className="space-y-3">
-        <h3 className="text-lg font-medium text-white">Préférences</h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
-            <span className="text-slate-300">Notifications</span>
-            <div className="w-12 h-6 bg-indigo-600 rounded-full relative">
-              <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5"></div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
-            <span className="text-slate-300">Mode sombre</span>
-            <div className="w-12 h-6 bg-indigo-600 rounded-full relative">
-              <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 right-0.5"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="pt-2">
-        <button className="w-full py-3 text-white bg-red-600 hover:bg-red-700 rounded-xl font-medium transition-colors">
-          Supprimer mon compte
-        </button>
-      </div>
-    </div>
-  </div>
-);

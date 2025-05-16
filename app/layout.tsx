@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/contexts/AuthContext';
 import { ModalProvider } from '@/lib/contexts/ModalContext';
 import AuthModals from './components/auth/AuthModals';
 import './globals.css';
+//import { Toaster } from 'react-hot-toast';
 
 export const metadata = {
   title: 'MythaYun',
@@ -41,6 +42,7 @@ export default function RootLayout({
             <AuthModals />
           </ModalProvider>
         </AuthProvider>
+
       </body>
     </html>
   );
