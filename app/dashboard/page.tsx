@@ -1,30 +1,86 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import OnboardingWizard from '../components/onboarding/OnboardingWizard'; 
 import { 
   FiUser, FiLogOut, FiHome, FiSettings, FiCalendar, 
   FiMessageCircle, FiHeart, FiActivity, FiMenu, FiX 
 } from 'react-icons/fi';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-05-14 05:50:13";
+const CURRENT_TIMESTAMP = "2025-05-16 01:54:51";
 const CURRENT_USER = "Sdiabate1337";
 
 export default function Dashboard() {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { 
+    user, 
+    isAuthenticated, 
+    isLoading, 
+    logout, 
+    showOnboarding, // Use the shared state from AuthContext
+    setShowOnboarding, // Direct setter if needed
+    completeOnboarding // Function to mark onboarding as complete
+  } = useAuth();
+  
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [confirmingLogout, setConfirmingLogout] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   
   // Route protection - redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
+      console.log(`[${CURRENT_TIMESTAMP}] User not authenticated, redirecting to login`);
       router.push('/?openModal=login');
     }
   }, [isAuthenticated, isLoading, router]);
+  
+  // Check for welcome parameter and show onboarding when needed
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      // Check if the welcome parameter is in the URL
+      const welcome = searchParams.get('welcome');
+      
+      if (welcome === 'true') {
+        console.log(`[${CURRENT_TIMESTAMP}] Welcome parameter detected, enabling onboarding`);
+        setShowOnboarding(true);
+      }
+      
+      // If showOnboarding is true (from context), show the wizard
+      if (showOnboarding && !showOnboardingWizard) {
+        console.log(`[${CURRENT_TIMESTAMP}] Showing onboarding wizard to ${user?.name || 'user'}`);
+        setShowOnboardingWizard(true);
+      }
+    }
+  }, [isAuthenticated, isLoading, searchParams, user, showOnboarding, showOnboardingWizard, setShowOnboarding]);
+  
+  // Handle onboarding completion
+  const handleOnboardingComplete = async () => {
+    try {
+      console.log(`[${CURRENT_TIMESTAMP}] Completing onboarding for user: ${user?.email}`);
+      
+      // Call the AuthContext function to update server and state
+      await completeOnboarding();
+      
+      // Update local UI state
+      setShowOnboardingWizard(false);
+      
+      // Remove welcome parameter from URL if it exists
+      if (searchParams.get('welcome')) {
+        router.replace('/dashboard');
+      }
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Onboarding completed successfully`);
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Error completing onboarding:`, error);
+      // Still close the wizard even if there's an error
+      setShowOnboardingWizard(false);
+    }
+  };
   
   // Handle logout with confirmation
   const handleLogout = () => {
@@ -335,12 +391,17 @@ export default function Dashboard() {
       
       {/* Add padding at bottom on mobile to account for the navigation bar */}
       <div className="md:hidden h-20"></div>
+
+      {/* Onboarding Wizard for new users */}
+      {showOnboardingWizard && (
+        <OnboardingWizard onComplete={handleOnboardingComplete} />
+      )}
     </div>
   );
 }
 
-// Tab component for Dashboard content
-const DashboardTab = ({ }) => (
+// Tab component definitions
+const DashboardTab = () => (
   <div className="space-y-6">
     <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-lg">
       <h2 className="text-xl font-bold mb-5 text-white">Tableaux de bord personnels</h2>

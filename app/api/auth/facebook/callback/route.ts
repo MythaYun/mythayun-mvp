@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
       const host = request.headers.get('host');
       console.log(`[${timestamp}] Host from headers: ${host}`);
       
-      // Always redirect to dashboard with absolute URL in Codespaces
+      // Use welcome=true parameter for onboarding new users
       const redirectPath = newUser ? '/dashboard?welcome=true' : '/dashboard';
+      console.log(`[${timestamp}] User is ${newUser ? 'new' : 'returning'}, redirecting to ${redirectPath}`);
       
       if (process.env.CODESPACE_NAME) {
         const codespaceBaseUrl = `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
@@ -71,6 +72,11 @@ export async function GET(request: NextRequest) {
         // Add refresh token cookie
         headers.append('Set-Cookie',
           `refreshToken=${refreshToken}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${JWT_REFRESH_EXPIRY_SECONDS}`
+        );
+        
+        // Set auth_success flag for detecting successful login in client
+        headers.append('Set-Cookie',
+          `auth_success=true; Path=/; Max-Age=60`
         );
         
         // Use native Response with Headers object
@@ -106,6 +112,14 @@ export async function GET(request: NextRequest) {
         value: refreshToken,
         ...cookieOptions,
         maxAge: JWT_REFRESH_EXPIRY_SECONDS,
+      });
+      
+      // Set auth_success flag for detecting successful login in client
+      response.cookies.set({
+        name: 'auth_success',
+        value: 'true',
+        path: '/',
+        maxAge: 60, // Short-lived, just for initial detection
       });
       
       return response;

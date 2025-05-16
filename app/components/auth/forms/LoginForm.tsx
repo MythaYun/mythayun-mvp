@@ -8,15 +8,21 @@ interface LoginFormProps {
   onSuccess?: () => void;
   onRegisterClick: () => void;
   onForgotPasswordClick: () => void;
-  verificationSuccess?: boolean;
+  verified?: boolean;
+  requiresVerification?: boolean;
   passwordReset?: boolean;
 }
+
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-16 11:27:47";
+const CURRENT_USER = "Sdiabate1337finally";
 
 export default function LoginForm({
   onSuccess,
   onRegisterClick,
   onForgotPasswordClick,
-  verificationSuccess = false,
+  verified = false,
+  requiresVerification = false,
   passwordReset = false,
 }: LoginFormProps) {
   // State management
@@ -25,6 +31,8 @@ export default function LoginForm({
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   
   // Authentication context
   const { login, authError, clearAuthError } = useAuth();
@@ -34,18 +42,57 @@ export default function LoginForm({
     clearAuthError();
     
     // Show success message if email was verified or password was reset
-    if (verificationSuccess) {
+    if (verified) {
       setShowSuccess('Votre adresse email a été vérifiée avec succès. Vous pouvez maintenant vous connecter.');
     } else if (passwordReset) {
       setShowSuccess('Votre mot de passe a été réinitialisé avec succès. Veuillez vous connecter avec votre nouveau mot de passe.');
     }
     
-    // Clear success message after 5 seconds
+    // Show verification required message
+    if (requiresVerification) {
+      setError('Veuillez vérifier votre adresse email avant de vous connecter. Vérifiez votre boîte de réception.');
+    }
+    
+    // Clear success message after 10 seconds
     if (showSuccess) {
-      const timer = setTimeout(() => setShowSuccess(null), 5000);
+      const timer = setTimeout(() => setShowSuccess(null), 10000);
       return () => clearTimeout(timer);
     }
-  }, [clearAuthError, verificationSuccess, passwordReset, showSuccess]);
+  }, [clearAuthError, verified, passwordReset, showSuccess, requiresVerification]);
+
+  // Function to resend verification email
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError('Veuillez saisir votre adresse email pour recevoir un nouvel email de vérification');
+      return;
+    }
+
+    try {
+      setIsResendingVerification(true);
+      
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setVerificationSent(true);
+        setShowSuccess('Un nouvel email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.');
+        // Clear verification sent status after 30 seconds
+        setTimeout(() => setVerificationSent(false), 30000);
+      } else {
+        setError(data.message || 'Échec de l\'envoi de l\'email de vérification');
+      }
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Error resending verification:`, error);
+      setError('Une erreur s\'est produite lors de l\'envoi de l\'email de vérification');
+    } finally {
+      setIsResendingVerification(false);
+    }
+  };
 
   // Form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,14 +108,26 @@ export default function LoginForm({
       setIsSubmitting(true);
       setError('');
       
+      console.log(`[${CURRENT_TIMESTAMP}] Attempting login for: ${email}`);
+      
       // Attempt login through AuthContext
       const result = await login(email, password);
       
+      // Check if email verification is required
+      if (result.requiresEmailVerification) {
+        console.log(`[${CURRENT_TIMESTAMP}] Email verification required for: ${email}`);
+        setError('Veuillez vérifier votre adresse email avant de vous connecter. Vérifiez votre boîte de réception.');
+        return;
+      }
+      
       // Handle login failure
       if (!result.success) {
+        console.error(`[${CURRENT_TIMESTAMP}] Login failed:`, result.error);
         setError(result.error || 'Échec de la connexion');
         return;
       }
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Login successful for: ${email}`);
       
       // Handle success - no need to redirect as AuthContext already does it
       if (onSuccess) {
@@ -76,8 +135,8 @@ export default function LoginForm({
       }
       
     } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Login exception:`, error);
       setError('Une erreur est survenue. Veuillez réessayer.');
-      console.error('Login error:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -92,48 +151,81 @@ export default function LoginForm({
     window.location.href = '/api/auth/facebook';
   };
 
+  // Helper to determine if we need to show verification-related UI
+  const needsVerificationUI = 
+    error?.toLowerCase().includes('vérifier votre') || 
+    error?.toLowerCase().includes('verification') ||
+    authError?.toLowerCase().includes('vérifier votre') ||
+    authError?.toLowerCase().includes('verification') ||
+    requiresVerification;
+
   return (
     <div className="w-full">
       {/* Success message if applicable */}
       {showSuccess && (
-        <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-800 text-sm">
+        <div className="mb-4 p-4 rounded-lg bg-green-900/30 border-l-4 border-green-500 text-green-300 text-sm">
           {showSuccess}
         </div>
       )}
       
       {/* Error message if applicable */}
-    {(error || authError) && (
-    <div className="mb-4 p-4 rounded-lg bg-red-100 border-l-4 border-red-500 text-red-800 flex items-start">
-      <div className="mr-3 mt-0.5">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-      </div>
-      <div>
-        <p className="font-medium">Erreur de connexion</p>
-        <p className="text-sm">{error || authError}</p>
-        {(error || authError)?.toLowerCase().includes('vérifier votre email') && (
-          <button
-            onClick={() => {/* Add resend verification email function here */}}
-            className="text-sm text-red-700 underline mt-1 hover:text-red-900"
-          >
-            Renvoyer l'email de vérification
-          </button>
-        )}
-      </div>
+      {(error || authError) && (
+        <div className="mb-4 p-4 rounded-lg bg-red-900/30 border-l-4 border-red-500 text-red-300 flex flex-col">
+          <div className="flex items-start">
+            <div className="mr-3 mt-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">Erreur de connexion</p>
+              <p className="text-sm">{error || authError}</p>
+            </div>
+          </div>
 
-      {(error || authError)?.toLowerCase().includes('mot de passe incorrect') && (
-      <div className="mt-2">
-        <button
-          onClick={onForgotPasswordClick}
-          className="text-sm text-red-700 underline hover:text-red-900"
-        >
-          Mot de passe oublié?
-        </button>
-      </div>
-    )}
-    </div>
-)}
+          {/* Show verification-related UI if needed */}
+          {needsVerificationUI && (
+            <div className="mt-3 pl-8">
+              {!verificationSent ? (
+                <button
+                  onClick={handleResendVerification}
+                  disabled={isResendingVerification || !email}
+                  className={`text-sm ${!email ? 'text-red-400/60 cursor-not-allowed' : 'text-red-300 hover:text-red-200'} underline flex items-center ${isResendingVerification ? 'opacity-70' : ''}`}
+                >
+                  {isResendingVerification ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3 mr-2" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Envoi en cours...
+                    </>
+                  ) : (
+                    `Renvoyer l'email de vérification${!email ? ' (saisissez votre email)' : ''}`
+                  )}
+                </button>
+              ) : (
+                <span className="text-sm text-green-300">
+                  ✓ Email de vérification envoyé
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Show password reset option for password-related errors */}
+          {((error || authError)?.toLowerCase().includes('mot de passe incorrect') || 
+            (error || authError)?.toLowerCase().includes('password')) && (
+            <div className="mt-2 pl-8">
+              <button
+                onClick={onForgotPasswordClick}
+                className="text-sm text-red-300 underline hover:text-red-200"
+              >
+                Mot de passe oublié?
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email field */}

@@ -5,7 +5,7 @@ import { JwtPayload } from './jwt-types';
 import { generateAccessToken, generateRefreshToken } from './jwt';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-05-15 20:49:20";
+const CURRENT_TIMESTAMP = "2025-05-16 01:23:17";
 const CURRENT_USER = "Sdiabate1337";
 
 // OAuth constants
@@ -148,10 +148,27 @@ export async function handleGoogleCallback(code: string): Promise<{ accessToken:
         authProvider: 'google',
         profilePicture: googleUser.picture,
         isVerified: true, // Google accounts are pre-verified
-        isActive: true
+        isActive: true,
+        // Add onboarding flags
+        isNewUser: true,
+        hasCompletedOnboarding: false,
+        // Initialize preferences with default values
+        preferences: {
+          favoriteLeagues: [],
+          favoriteTeams: [],
+          notificationPreferences: {
+            matchReminders: true,
+            scoreUpdates: true,
+            newsAlerts: false
+          },
+          displayPreferences: {
+            darkMode: true,
+            compactView: false
+          }
+        }
       });
       
-      console.log(`[${CURRENT_TIMESTAMP}] Created new Google user: ${user.email} (${user._id})`);
+      console.log(`[${CURRENT_TIMESTAMP}] Created new Google user: ${user.email} (${user._id}) with onboarding flags`);
     } 
     // 6. Update existing user if needed
     else if (!user.googleId && googleUser.id) {
@@ -169,10 +186,42 @@ export async function handleGoogleCallback(code: string): Promise<{ accessToken:
         user.authProvider = 'google';
       }
       
+      // Check if we need to set up onboarding
+      if (user.preferences === undefined) {
+        user.preferences = {
+          favoriteLeagues: [],
+          favoriteTeams: [],
+          notificationPreferences: {
+            matchReminders: true,
+            scoreUpdates: true,
+            newsAlerts: false
+          },
+          displayPreferences: {
+            darkMode: true,
+            compactView: false
+          }
+        };
+        
+        // If preferences didn't exist, this is effectively a new user experience
+        user.isNewUser = true;
+        user.hasCompletedOnboarding = false;
+        newUser = true;
+      }
+      
       await user.save();
       console.log(`[${CURRENT_TIMESTAMP}] Linked Google account to existing user: ${user.email} (${user._id})`);
     } else {
-      console.log(`[${CURRENT_TIMESTAMP}] Existing Google user logged in: ${user.email} (${user._id})`);
+      // Existing user is logging in
+      // Update the lastLogin timestamp
+      user.lastLogin = new Date();
+      
+      // Don't reset onboarding flags for returning users
+      await user.save();
+      
+      // Get current onboarding status (for returning the correct newUser flag)
+      newUser = user.isNewUser === true && user.hasCompletedOnboarding !== true;
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Existing Google user logged in: ${user.email} (${user._id}), newUser status: ${newUser}`);
     }
     
     // 7. Convert Mongoose document to plain object - THIS IS THE CRITICAL FIX
@@ -374,10 +423,27 @@ export async function handleFacebookCallback(code: string): Promise<{ accessToke
         authProvider: 'facebook',
         profilePicture: fbUser.picture?.data?.url,
         isVerified: true, // Facebook accounts are pre-verified
-        isActive: true
+        isActive: true,
+        // Add onboarding flags
+        isNewUser: true,
+        hasCompletedOnboarding: false,
+        // Initialize preferences with default values
+        preferences: {
+          favoriteLeagues: [],
+          favoriteTeams: [],
+          notificationPreferences: {
+            matchReminders: true,
+            scoreUpdates: true,
+            newsAlerts: false
+          },
+          displayPreferences: {
+            darkMode: true,
+            compactView: false
+          }
+        }
       });
       
-      console.log(`[${CURRENT_TIMESTAMP}] Created new Facebook user: ${user.email} (${user._id})`);
+      console.log(`[${CURRENT_TIMESTAMP}] Created new Facebook user: ${user.email} (${user._id}) with onboarding flags`);
     } 
     // 6. Update existing user if needed
     else if (!user.facebookId && fbUser.id) {
@@ -395,10 +461,42 @@ export async function handleFacebookCallback(code: string): Promise<{ accessToke
         user.authProvider = 'facebook';
       }
       
+      // Check if we need to set up onboarding
+      if (user.preferences === undefined) {
+        user.preferences = {
+          favoriteLeagues: [],
+          favoriteTeams: [],
+          notificationPreferences: {
+            matchReminders: true,
+            scoreUpdates: true,
+            newsAlerts: false
+          },
+          displayPreferences: {
+            darkMode: true,
+            compactView: false
+          }
+        };
+        
+        // If preferences didn't exist, this is effectively a new user experience
+        user.isNewUser = true;
+        user.hasCompletedOnboarding = false;
+        newUser = true;
+      }
+      
       await user.save();
       console.log(`[${CURRENT_TIMESTAMP}] Linked Facebook account to existing user: ${user.email} (${user._id})`);
     } else {
-      console.log(`[${CURRENT_TIMESTAMP}] Existing Facebook user logged in: ${user.email} (${user._id})`);
+      // Existing user is logging in
+      // Update the lastLogin timestamp
+      user.lastLogin = new Date();
+      
+      // Don't reset onboarding flags for returning users
+      await user.save();
+      
+      // Get current onboarding status (for returning the correct newUser flag)
+      newUser = user.isNewUser === true && user.hasCompletedOnboarding !== true;
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Existing Facebook user logged in: ${user.email} (${user._id}), newUser status: ${newUser}`);
     }
     
     // 7. Convert Mongoose document to plain object - THIS IS THE CRITICAL FIX
@@ -415,15 +513,15 @@ export async function handleFacebookCallback(code: string): Promise<{ accessToke
     
     // 9. Generate tokens with plain objects
     const accessToken = generateAccessToken(jwtPayload);
-  const refreshPayload: JwtPayload = {
-    userId: userObject._id.toString(),
-    name: userObject.name,
-    email: userObject.email,
-    role: userObject.role,
-    tokenType: 'refresh'
-  };
+    const refreshPayload: JwtPayload = {
+      userId: userObject._id.toString(),
+      name: userObject.name,
+      email: userObject.email,
+      role: userObject.role,
+      tokenType: 'refresh'
+    };
 
-  const refreshToken = generateRefreshToken(refreshPayload);
+    const refreshToken = generateRefreshToken(refreshPayload);
     
     console.log(`[${CURRENT_TIMESTAMP}] Generated auth tokens for: ${userObject.email}`);
     

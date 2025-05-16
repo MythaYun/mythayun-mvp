@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-05-13 22:17:09";
+const CURRENT_TIMESTAMP = "2025-05-16 01:05:42";
 const CURRENT_USER = "Sdiabate1337";
 
 // User interface
@@ -30,11 +30,32 @@ export interface IUser {
   facebookId?: string;
   authProvider?: 'local' | 'google' | 'facebook';
   profilePicture?: string; // For social profile pictures
+  
+  // New fields for onboarding
+  isNewUser?: boolean; // Flag indicating if this is a new user
+  hasCompletedOnboarding?: boolean; // Flag indicating if onboarding has been completed
+  preferences?: {
+    favoriteLeagues?: string[];
+    favoriteTeams?: string[];
+    notificationPreferences?: {
+      matchReminders?: boolean;
+      scoreUpdates?: boolean;
+      newsAlerts?: boolean;
+    };
+    displayPreferences?: {
+      darkMode?: boolean;
+      compactView?: boolean;
+    };
+    [key: string]: any; // Allow for additional preference options
+  };
+  
   createdAt: Date;
   updatedAt: Date;
 
   toObject: (options?: object) => any;
   toJSON: (options?: object) => any;
+  isFirstLogin?: boolean; // Flag indicating if this is the user's first login
+  previousLogin?: Date; // Previous login time
 }
 
 // Methods available on user documents
@@ -136,6 +157,50 @@ const UserSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
     profilePicture: {
       type: String, // URL to profile picture (especially from social providers)
     },
+    
+    // New fields for onboarding system
+    isNewUser: {
+      type: Boolean,
+      default: true, // Default to true for new users
+    },
+    hasCompletedOnboarding: {
+      type: Boolean,
+      default: false,
+    },
+    preferences: {
+      favoriteLeagues: {
+        type: [String],
+        default: [],
+      },
+      favoriteTeams: {
+        type: [String],
+        default: [],
+      },
+      notificationPreferences: {
+        matchReminders: {
+          type: Boolean,
+          default: true,
+        },
+        scoreUpdates: {
+          type: Boolean,
+          default: true,
+        },
+        newsAlerts: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      displayPreferences: {
+        darkMode: {
+          type: Boolean,
+          default: true,
+        },
+        compactView: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    },
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
@@ -166,6 +231,17 @@ UserSchema.pre('save', async function(next) {
   } catch (err: any) {
     return next(err);
   }
+});
+
+
+UserSchema.pre('save', function(next) {
+  if (this.isNew) {
+    // For new users, ensure isNewUser is set to true
+    this.isNewUser = true;
+    console.log(`[${CURRENT_TIMESTAMP}] New user created: ${this.email}, isNewUser set to true`);
+  } 
+  // Only allow explicit changes to isNewUser by not setting it automatically here
+  next();
 });
 
 // Method to compare passwords
@@ -296,6 +372,7 @@ UserSchema.static('createSocialUser', async function createSocialUser(userData: 
     isVerified: true, // Social users are automatically verified
     authProvider: userData.googleId ? 'google' : 'facebook',
     password: crypto.randomBytes(16).toString('hex'), // Random password for security
+    isNewUser: true, // Mark as new user for onboarding
   });
   
   await user.save();

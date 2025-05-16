@@ -21,6 +21,7 @@ type AuthResult = {
   user?: Partial<IUser>;
   needsVerification?: boolean;
   token?: string; 
+  requiresEmailVerification?: boolean;
 };
 
 /**
@@ -46,6 +47,7 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
     await connectToDatabase();
 
     // Rechercher l'utilisateur et inclure le mot de passe pour la vérification
+    // Include all needed fields for onboarding
     const user = await User.findOne({ email }).select('+password');
     
     // Si l'utilisateur n'existe pas
@@ -61,7 +63,8 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
     // Vérifier si le compte est vérifié
     if (!user.isVerified) {
       return { 
-        success: false, 
+        success: false,
+        requiresEmailVerification: true, // Add this flag for the frontend
         message: 'Veuillez vérifier votre adresse email avant de vous connecter' 
       };
     }
@@ -101,11 +104,17 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
       await user.resetLoginAttempts();
     }
 
+    // Check if this is the first login (for onboarding purposes)
+    const isFirstLogin = !user.lastLogin;
+    console.log(`[${timestamp}] User login status - isFirstLogin: ${isFirstLogin}, previous lastLogin: ${user.lastLogin || 'none'}`);
+    
     // Mettre à jour la date de dernière connexion
+    const previousLogin = user.lastLogin;
     user.lastLogin = new Date();
     await user.save();
 
-     const accessToken = jwtUtils.generateAccessToken({
+    // Generate tokens
+    const accessToken = jwtUtils.generateAccessToken({
       userId: user._id!.toString(),
       name: user.name,
       email: user.email,
@@ -115,13 +124,15 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
 
     const refreshToken = jwtUtils.generateRefreshTokenFromUser(user);
 
-    // Set auth cookies (this is important!)
+    // Set auth cookies
     await jwtUtils.setAuthCookies(accessToken, refreshToken);
 
-    console.log(`[${new Date().toISOString()}] Login successful, tokens generated`);
+    // Log onboarding status
+    console.log(`[${timestamp}] Login successful, tokens generated`);
+    console.log(`[${timestamp}] User onboarding status - isNewUser: ${user.isNewUser || false}, hasCompletedOnboarding: ${user.hasCompletedOnboarding || false}, isFirstLogin: ${isFirstLogin}`);
 
-    // Return user data and tokens
-return {
+    // Return user data and tokens WITH ONBOARDING PROPERTIES
+    return {
       success: true,
       message: 'Connexion réussie.',
       user: {
@@ -129,16 +140,37 @@ return {
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        // Include these important properties for onboarding
+        isNewUser: user.isNewUser || isFirstLogin || false,
+        hasCompletedOnboarding: user.hasCompletedOnboarding || false,
+        isFirstLogin: isFirstLogin,
+        lastLogin: user.lastLogin,
+        previousLogin: previousLogin, // Include previous login time
+        createdAt: user.createdAt,
+        preferences: user.preferences || {
+          favoriteLeagues: [],
+          favoriteTeams: [],
+          notificationPreferences: {
+            matchReminders: true,
+            scoreUpdates: true,
+            newsAlerts: false
+          },
+          displayPreferences: {
+            darkMode: true,
+            compactView: false
+          }
+        }
       },
       accessToken,
       refreshToken
     };
   } catch (error) {
-    console.error('Erreur d\'inscription:', error);
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] Error during login:`, error);
     return { 
       success: false, 
-      message: 'Une erreur s\'est produite lors de l\'inscription',
+      message: 'Une erreur s\'est produite lors de la connexion',
       accessToken: undefined,
       refreshToken: undefined
     };
@@ -150,6 +182,9 @@ return {
  */
 export async function registerAction(formData: FormData): Promise<AuthResult> {
   try {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Processing registration for new user`);
+    
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
@@ -164,6 +199,7 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
     // Vérifier si l'utilisateur existe déjà
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log(`[${timestamp}] Registration failed: Email already in use: ${email}`);
       return { success: false, message: 'Cet email est déjà utilisé' };
     }
 
@@ -174,9 +210,25 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       email,
       password,
       role: 'user',
-      isVerified: false,
+      isVerified: false, // Important: User is NOT verified initially
       isActive: true,
       favoriteTeams: [],
+      // Explicitly set onboarding flags for clarity
+      isNewUser: true,
+      hasCompletedOnboarding: false,
+      preferences: {
+        favoriteLeagues: [],
+        favoriteTeams: [],
+        notificationPreferences: {
+          matchReminders: true,
+          scoreUpdates: true,
+          newsAlerts: false
+        },
+        displayPreferences: {
+          darkMode: true,
+          compactView: false
+        }
+      },
       createdAt: now,
       updatedAt: now,
       loginAttempts: 0
@@ -186,6 +238,7 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
     const verificationToken = user.generateVerificationToken();
 
     await user.save();
+    console.log(`[${timestamp}] Successfully registered new user: ${email}`);
 
     // Envoyer l'email de vérification
     const emailSent = await sendVerificationEmail(
@@ -194,11 +247,13 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       verificationToken
     );
 
-  
+    console.log(`[${timestamp}] Verification email sent: ${emailSent ? 'success' : 'failed'}`);
 
-    // Retourner l'utilisateur (sans données sensibles)
+    // IMPORTANT: Return the user without setting authentication
+    // The user should NOT be considered authenticated until they verify their email
     return {
       success: true,
+      requiresEmailVerification: true,
       message: emailSent
         ? 'Inscription réussie. Veuillez vérifier votre boîte email.'
         : 'Inscription réussie. Email de vérification non envoyé.',
@@ -207,11 +262,11 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified
+        isVerified: false, // Explicitly mark as not verified
       }
     };
   } catch (error) {
-    console.error('Erreur d\'inscription:', error);
+    console.error(`[${new Date().toISOString()}] Erreur d'inscription:`, error);
     return { success: false, message: 'Une erreur s\'est produite lors de l\'inscription' };
   }
 }

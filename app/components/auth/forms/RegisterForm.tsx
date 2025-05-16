@@ -5,8 +5,9 @@ import { FiAlertCircle, FiEye, FiEyeOff, FiCheck, FiX } from 'react-icons/fi';
 import { registerAction } from '@/lib/auth/auth-actions';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
+// Update the onSuccess interface to receive email and message
 interface RegisterFormProps {
-  onSuccess: () => void;
+  onSuccess: (email: string, message: string) => void;
   onLoginClick: () => void;
 }
 
@@ -18,6 +19,10 @@ const PASSWORD_REQUIREMENTS = [
   { id: 'number', label: 'Un chiffre', regex: /[0-9]/ },
 ];
 
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-16 11:05:20";
+const CURRENT_USER = "Sdiabate1337";
+
 export default function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +30,9 @@ export default function RegisterForm({ onSuccess, onLoginClick }: RegisterFormPr
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const { updateUser } = useAuth();
+  
+  // Remove updateUser from here - we don't want to authenticate the user after registration
+  const { /* Do NOT use updateUser here */ } = useAuth();
 
   // Calculate password strength
   const getPasswordStrength = (pwd: string) => {
@@ -85,6 +92,8 @@ export default function RegisterForm({ onSuccess, onLoginClick }: RegisterFormPr
     setError(null);
     
     try {
+      console.log(`[${CURRENT_TIMESTAMP}] Submitting registration for: ${email}`);
+      
       const registerFormData = new FormData();
       registerFormData.append('name', name);
       registerFormData.append('email', email);
@@ -94,17 +103,23 @@ export default function RegisterForm({ onSuccess, onLoginClick }: RegisterFormPr
       
       // Add defensive check before accessing properties
       if (result && result.success) {
-        // Only call updateUser if result.user exists
-        if (result.user) {
-          updateUser(result.user);
-        }
-        onSuccess();
+        console.log(`[${CURRENT_TIMESTAMP}] Registration successful for ${email}`);
+        
+        // IMPORTANT: Do NOT call updateUser here - the user should not be considered
+        // authenticated until they verify their email
+        
+        // Pass both email and message to the onSuccess handler
+        onSuccess(
+          email, 
+          result.message || 'Inscription réussie. Veuillez vérifier votre boîte email pour activer votre compte.'
+        );
       } else {
+        console.error(`[${CURRENT_TIMESTAMP}] Registration error: ${result?.message}`);
         setError(result?.message || 'Échec de l\'inscription');
       }
     } catch (err) {
+      console.error(`[${CURRENT_TIMESTAMP}] Registration exception:`, err);
       setError('Une erreur inattendue s\'est produite');
-      console.error(err);
     } finally {
       setIsLoading(false);
     }

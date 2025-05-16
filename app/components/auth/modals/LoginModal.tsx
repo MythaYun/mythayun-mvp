@@ -1,47 +1,64 @@
 'use client';
 
-import React from 'react';
+import { useSearchParams } from 'next/navigation';
 import Modal from '../../ui/Modal';
 import LoginForm from '../forms/LoginForm';
 import { useModal } from '@/lib/contexts/ModalContext';
 
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-16 11:27:47";
+const CURRENT_USER = "Sdiabate1337finally";
+
 interface LoginModalProps {
-  verificationSuccess?: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  initialView?: 'login' | 'register' | 'forgotPassword';
+  verified?: boolean;
+  requiresVerification?: boolean;
   passwordReset?: boolean;
 }
 
 export default function LoginModal({ 
-  verificationSuccess = false,
+  isOpen, 
+  onClose, 
+  initialView = 'login',
+  verified = false,
+  requiresVerification = false,
   passwordReset = false
 }: LoginModalProps) {
-  const { closeModal, openModal } = useModal();
+  const { openModal, closeModal } = useModal();
+  const searchParams = useSearchParams();
   
-  // Current timestamp for logging
-  const CURRENT_TIMESTAMP = "2025-05-14 00:04:49";
+  // Check for verification status in URL parameters
+  const urlVerified = searchParams.get('verified') === 'true';
   
+  // Handle success
   const handleLoginSuccess = () => {
-    console.log(`[${CURRENT_TIMESTAMP}] Login successful, modal will close automatically`);
     closeModal();
-    // No need to redirect here, the AuthContext handles it
   };
-  
+
+  // Navigation between forms
   const goToRegister = () => {
     closeModal();
     setTimeout(() => openModal('register'), 100);
   };
-  
+
   const goToForgotPassword = () => {
     closeModal();
     setTimeout(() => openModal('forgotPassword'), 100);
   };
 
   return (
-    <Modal title="Connexion" onClose={closeModal}>
+    <Modal 
+      title="Connexion" 
+      onClose={onClose}
+    >
       <LoginForm
         onSuccess={handleLoginSuccess}
         onRegisterClick={goToRegister}
         onForgotPasswordClick={goToForgotPassword}
-        verificationSuccess={verificationSuccess}
+        verified={verified || urlVerified}
+        requiresVerification={requiresVerification}
         passwordReset={passwordReset}
       />
     </Modal>

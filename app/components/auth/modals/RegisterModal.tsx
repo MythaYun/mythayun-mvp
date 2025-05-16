@@ -3,31 +3,30 @@
 import React, { useState } from 'react';
 import Modal from '../../ui/Modal';
 import RegisterForm from '../forms/RegisterForm';
-import RegistrationSuccess from '../RegistrationSuccess'; // Fixed path
+import RegistrationSuccess from '../RegistrationSuccess';
 import { useModal } from '@/lib/contexts/ModalContext';
 
 // Current timestamp and user for logging
-const CURRENT_TIMESTAMP = "2025-05-10 02:07:48"; // Updated timestamp
+const CURRENT_TIMESTAMP = "2025-05-16 10:56:48"; // Updated timestamp
 const CURRENT_USER = "Sdiabate1337";
 
 export default function RegisterModal() {
   const { closeModal, openModal } = useModal();
   const [registeredEmail, setRegisteredEmail] = useState<string>('');
   const [registrationComplete, setRegistrationComplete] = useState<boolean>(false);
+  const [registrationMessage, setRegistrationMessage] = useState<string>('');
 
-  const handleSuccess = () => {
-    console.log(`[${CURRENT_TIMESTAMP}] Registration successful`);
+  // Updated handler to receive email and message directly from the form component
+  const handleRegistrationSuccess = (email: string, message: string) => {
+    console.log(`[${CURRENT_TIMESTAMP}] Registration successful for: ${email}`);
     
-    // Get the email from the form before closing
-    const emailInput = document.getElementById('email') as HTMLInputElement;
-    if (emailInput) {
-      setRegisteredEmail(emailInput.value);
-      console.log(`[${CURRENT_TIMESTAMP}] Setting registered email to: ${emailInput.value}`);
-    }
+    // Set the email and message from the registration result
+    setRegisteredEmail(email);
+    setRegistrationMessage(message || 'Inscription réussie. Veuillez vérifier votre boîte email.');
     
-    // Show success screen instead of closing the modal
+    // Show success screen
     setRegistrationComplete(true);
-    console.log(`[${CURRENT_TIMESTAMP}] Registration complete set to true`);
+    console.log(`[${CURRENT_TIMESTAMP}] Registration complete, showing verification instructions`);
   };
 
   const goToLogin = () => {
@@ -37,17 +36,19 @@ export default function RegisterModal() {
 
   return (
     <Modal 
-      title={registrationComplete ? "Inscription réussie" : "Inscription"} 
+      title={registrationComplete ? "Vérifiez votre email" : "Inscription"} 
       onClose={closeModal}
     >
       {registrationComplete ? (
         <RegistrationSuccess 
-          email={registeredEmail} 
+          email={registeredEmail}
+          message={registrationMessage}
           onClose={closeModal} 
+          onLoginClick={goToLogin}
         />
       ) : (
         <RegisterForm 
-          onSuccess={handleSuccess} 
+          onSuccess={handleRegistrationSuccess} 
           onLoginClick={goToLogin}
         />
       )}

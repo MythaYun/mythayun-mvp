@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loginAction } from '@/lib/auth/auth-actions';
+import { loginAction } from '@/lib/auth/auth-actions'; // Updated import path
 import { rateLimit } from '@/lib/utils/rate-limit';
 import { JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from '@/lib/auth/jwt-types';
 
@@ -122,6 +122,19 @@ export async function POST(request: NextRequest) {
       loginLimiter.reset(ip);
       if (emailKey) failedAttempts.delete(emailKey);
       
+      // Check if user is verified (should be true at this point, but double check)
+      if (result.user?.isVerified === false) {
+        console.log(`[${timestamp}] Login attempt for unverified user: ${email}`);
+        return NextResponse.json(
+          { 
+            success: false, 
+            requiresEmailVerification: true,
+            message: 'Veuillez vérifier votre adresse email avant de vous connecter. Vérifiez votre boîte de réception.' 
+          },
+          { status: 403 }
+        );
+      }
+      
       // Create a response object
       const response = NextResponse.json(result);
       
@@ -190,6 +203,19 @@ export async function POST(request: NextRequest) {
     } 
     // Handle login failure
     else {
+      // Check if email verification is required
+      if (result.requiresEmailVerification) {
+        console.log(`[${timestamp}] Login attempt requires email verification: ${email}`);
+        return NextResponse.json(
+          {
+            success: false,
+            requiresEmailVerification: true,
+            message: result.message || 'Veuillez vérifier votre adresse email avant de vous connecter'
+          },
+          { status: 403 }
+        );
+      }
+      
       // Update failed attempts tracker
       if (emailKey) {
         const attempts = failedAttempts.get(emailKey) || { count: 0, timestamp: Date.now() };
@@ -207,8 +233,11 @@ export async function POST(request: NextRequest) {
       // Map error messages to appropriate status codes
       let statusCode = 401; // Default for auth failures
       
-      if (result.message?.includes('vérifier votre email')) {
+      if (result.message?.toLowerCase().includes('vérifi') || 
+          result.message?.toLowerCase().includes('verif')) {
         statusCode = 403;
+        // Add the flag explicitly if it's missing but the message indicates verification is needed
+        result.requiresEmailVerification = true;
       } else if (result.message?.includes('verrouillé')) {
         statusCode = 423;
       }

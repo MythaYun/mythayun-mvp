@@ -8,14 +8,22 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import { useModal } from "@/lib/contexts/ModalContext";
 import { useRouter } from "next/navigation";
 
-
 // Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-07 17:59:28";
+const CURRENT_TIMESTAMP = "2025-05-16 11:21:50"; // Updated timestamp
 const CURRENT_USER = "Sdiabate1337";
 
 export default function Home() {
-   // Use auth context
-  const { user, isAuthenticated, isLoading, logout, authError, refreshUser } = useAuth();
+  // Use auth context - use authCheckComplete from context
+  const { 
+    user, 
+    isAuthenticated, 
+    isLoading, 
+    logout, 
+    authError, 
+    refreshUser,
+    authCheckComplete // Get from context instead of local state
+  } = useAuth();
+  
   const router = useRouter();
   
   // Use modal context
@@ -30,9 +38,8 @@ export default function Home() {
   // Use search params for handling email verification
   const searchParams = useSearchParams();
   
-  // Add states to track parameter processing
+  // Add state to track parameter processing
   const [paramsProcessed, setParamsProcessed] = useState(false);
-  const [authCheckComplete, setAuthCheckComplete] = useState(false);
   
   // FIX 1: Add a ref to track if a redirection is pending
   const redirectPendingRef = useRef<boolean>(false);
@@ -43,7 +50,7 @@ export default function Home() {
     if (paramsProcessed) return;
     
     // Get all possible authentication-related URL parameters
-    const verificationSuccess = searchParams.get('verificationSuccess');
+    const verified = searchParams.get('verified');
     const error = searchParams.get('error');
     const openModalParam = searchParams.get('openModal');
     const token = searchParams.get('token');
@@ -52,7 +59,7 @@ export default function Home() {
     const provider = searchParams.get('provider');
     
     console.log(`[${CURRENT_TIMESTAMP}] Processing URL parameters:`, {
-      verificationSuccess,
+      verified,
       error,
       openModalParam,
       token: token ? `${token.substring(0, 10)}...` : null,
@@ -78,7 +85,7 @@ export default function Home() {
         // Then refresh user data and redirect
         await refreshUser(true);
       } catch (error) {
-        console.error('Error during auth success handling:', error);
+        console.error(`[${CURRENT_TIMESTAMP}] Error during auth success handling:`, error);
       }
       
       setParamsProcessed(true);
@@ -86,14 +93,14 @@ export default function Home() {
     }
     
     // CASE 2: Email verification success
-    if (verificationSuccess === 'true') {
+    if (verified === 'true') {
       console.log(`[${CURRENT_TIMESTAMP}] Email verification successful, opening login modal`);
       // Open login modal with verification success message
-      openModal('login', { verificationSuccess: true });
+      openModal('login', { verified: true });
       
       // Clean up URL parameters
       const url = new URL(window.location.href);
-      url.searchParams.delete('verificationSuccess');
+      url.searchParams.delete('verified');
       window.history.replaceState({}, document.title, url.pathname);
       
       setParamsProcessed(true);
@@ -109,6 +116,9 @@ export default function Home() {
         alert('Échec de la connexion Google. Veuillez réessayer.');
       } else if (error.includes('facebook_auth_failed')) {
         alert('Échec de la connexion Facebook. Veuillez réessayer.');
+      } else if (error.includes('email_verification')) {
+        // Special handling for email verification errors
+        openModal('login', { requiresVerification: true });
       } else {
         alert(`Erreur d'authentification: ${error}`);
       }
@@ -148,7 +158,14 @@ export default function Home() {
     // Handle authError from context (if present)
     if (authError && !error) {
       console.error(`[${CURRENT_TIMESTAMP}] Auth context error: ${authError}`);
-      alert(authError);
+      
+      // Show appropriate error based on type
+      if (authError.includes('verification') || authError.includes('vérifi')) {
+        openModal('login', { requiresVerification: true });
+      } else {
+        alert(authError);
+      }
+      
       setParamsProcessed(true);
       return;
     }
@@ -162,28 +179,27 @@ export default function Home() {
     // Only run this effect when auth state is confirmed and not loading
     if (!isLoading && authCheckComplete && !redirectPendingRef.current) {
       if (isAuthenticated && user) {
-        console.log(`[${CURRENT_TIMESTAMP}] User is authenticated, redirecting to dashboard`);
-        router.push('/dashboard');
+        // Only redirect if user is authenticated AND verified
+        if (user.isVerified !== false) {
+          console.log(`[${CURRENT_TIMESTAMP}] User is authenticated and verified, redirecting to dashboard`);
+          redirectPendingRef.current = true;
+          router.push('/dashboard');
+        } else {
+          console.log(`[${CURRENT_TIMESTAMP}] User is authenticated but not verified, staying on homepage`);
+          // Optionally show verification reminder
+          openModal('login', { requiresVerification: true });
+        }
       }
     }
-  }, [isAuthenticated, isLoading, user, router, authCheckComplete]);
+  }, [isAuthenticated, isLoading, user, router, authCheckComplete, openModal]);
 
-  // FIX 5: Separate auth check from URL parameter processing
+  // FIX 5: Process URL parameters after auth check
   useEffect(() => {
     if (authCheckComplete && !paramsProcessed) {
       console.log(`[${CURRENT_TIMESTAMP}] Auth check complete, processing URL parameters`);
       processUrlParameters();
     }
   }, [authCheckComplete, paramsProcessed, processUrlParameters]);
-
-  // FIX 6: Track initial auth check completion
-  useEffect(() => {
-    // Once loading is false, we know the auth check is complete
-    if (!isLoading && !authCheckComplete) {
-      console.log(`[${CURRENT_TIMESTAMP}] Initial auth check complete, isAuthenticated: ${isAuthenticated}`);
-      setAuthCheckComplete(true);
-    }
-  }, [isLoading, isAuthenticated, authCheckComplete]);
 
   // Toggle mobile menu
   const toggleMobileMenu = (e: React.MouseEvent<HTMLButtonElement>): void => {
