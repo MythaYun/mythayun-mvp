@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { FiX, FiArrowRight, FiArrowLeft, FiCheck } from 'react-icons/fi';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
+// Update interface to pass preferences to parent
 interface OnboardingWizardProps {
-  onComplete: () => void;
+  onComplete: (preferences: any) => void; // Modified to accept preferences
 }
 
 interface OnboardingStep {
@@ -16,7 +17,7 @@ interface OnboardingStep {
 }
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
-  const { user, updateUserPreferences } = useAuth();
+  const { user } = useAuth(); // Remove updateUserPreferences - let parent handle this
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [preferences, setPreferences] = useState({
     favoriteLeagues: [] as string[],
@@ -97,28 +98,28 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     }
   };
 
-  // Handle onboarding completion
+  // Handle onboarding completion - UPDATED TO PASS PREFERENCES
   const completeOnboarding = async () => {
     try {
-      // Save preferences to user profile
-      await updateUserPreferences(preferences);
+      const timestamp = new Date().toISOString();
       
-      console.log(`[${new Date().toISOString()}] Onboarding completed, preferences saved:`, 
-        JSON.stringify(preferences).substring(0, 100) + '...');
+      console.log(`[${timestamp}] Onboarding completed, passing preferences to parent:`, 
+        JSON.stringify(preferences));
       
-      // Call the completion callback
-      onComplete();
+      // Pass preferences to the parent component
+      onComplete(preferences);
     } catch (error) {
-      console.error('Error saving preferences:', error);
-      // Still mark as complete even if preference saving fails
-      onComplete();
+      console.error(`[${new Date().toISOString()}] Error during onboarding completion:`, error);
+      // Still pass preferences even if there's an error
+      onComplete(preferences);
     }
   };
 
-  // Skip onboarding
+  // Skip onboarding - ALSO UPDATED TO PASS DEFAULT PREFERENCES
   const skipOnboarding = () => {
-    console.log(`[${new Date().toISOString()}] Onboarding skipped by user`);
-    onComplete();
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Onboarding skipped by user, passing default preferences`);
+    onComplete(preferences);
   };
 
   const currentStep = steps[currentStepIndex];

@@ -580,14 +580,14 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
     }
   }, [user]);
 
+// Complete onboarding function with proper preferences handling
 const completeOnboarding = useCallback(async (preferences?: any) => {
   try {
-    const timestamp = new Date().toISOString(); // Use current timestamp
+    const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] Marking onboarding as complete`);
     
     if (!user) {
       console.error(`[${timestamp}] Cannot complete onboarding: No authenticated user`);
-      // Instead of throwing, handle it gracefully
       setShowOnboarding(false);
       
       // Clear welcome parameter from URL if present
@@ -598,14 +598,7 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
       return;
     }
     
-    console.log(`[${timestamp}] Current user:`, {
-      email: user.email,
-      isNewUser: user.isNewUser,
-      hasCompletedOnboarding: user.hasCompletedOnboarding,
-      hasPreferences: !!user.preferences
-    });
-    
-    // Use provided preferences or fallback to existing/defaults
+    // Use provided preferences or fallback to defaults if needed
     const finalPreferences = preferences || user.preferences || {
       favoriteLeagues: [],
       favoriteTeams: [],
@@ -620,15 +613,49 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
       }
     };
     
-    console.log(`[${timestamp}] Using preferences for onboarding completion:`, finalPreferences);
+    // Detailed logging
+    console.log(`[${timestamp}] Completing onboarding for user: ${user.email}`);
+    console.log(`[${timestamp}] Using preferences:`, JSON.stringify(finalPreferences));
     
-    // Call the preferences update API to mark onboarding as complete
-    await updateUserPreferences(finalPreferences);
+    // Update user preferences via API call
+    const response = await fetch('/api/user/preferences', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      credentials: 'include', // Important: Include cookies for auth
+      body: JSON.stringify(finalPreferences),
+    });
     
-    // Update local state
-    setShowOnboarding(false);
+    // Parse response data
+    const data = await response.json();
     
-    console.log(`[${timestamp}] Onboarding completed for user: ${user.email}`);
+    if (!response.ok) {
+      console.error(`[${timestamp}] Failed to update preferences: ${data.message || response.status}`);
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
+    
+    console.log(`[${timestamp}] API response:`, JSON.stringify(data));
+    
+    if (data.success && data.user) {
+      // Update local user state with the returned data
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        
+        return { 
+          ...prevUser, 
+          preferences: data.user.preferences,
+          hasCompletedOnboarding: true,
+          isNewUser: false
+        };
+      });
+      
+      console.log(`[${timestamp}] User preferences updated successfully`);
+      setShowOnboarding(false);
+    } else {
+      console.warn(`[${timestamp}] Preferences update returned success:true but no user data`);
+    }
     
     // Clear welcome parameter from URL if present
     if (typeof window !== 'undefined' && window.location.search.includes('welcome')) {
@@ -636,15 +663,15 @@ const completeOnboarding = useCallback(async (preferences?: any) => {
     }
     
   } catch (error) {
-    const timestamp = new Date().toISOString();
-    console.error(`[${timestamp}] Error completing onboarding:`, error);
-    // Even on error, we should hide the onboarding UI to prevent getting stuck
+    console.error(`[${new Date().toISOString()}] Error completing onboarding:`, error);
+    // Even on error, hide onboarding UI to prevent getting stuck
     setShowOnboarding(false);
     
+    // Set error message
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     setAuthError(`Erreur lors de la finalisation de l'onboarding: ${errorMessage}`);
   }
-}, [user, updateUserPreferences]);
+}, [user, setUser, setAuthError]);
 
   // New effect for detecting welcome parameter in URL
   useEffect(() => {

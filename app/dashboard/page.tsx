@@ -10,7 +10,7 @@ import {
 } from 'react-icons/fi';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-05-16 01:54:51";
+const CURRENT_TIMESTAMP = new Date().toISOString();
 const CURRENT_USER = "Sdiabate1337";
 
 export default function Dashboard() {
@@ -34,7 +34,7 @@ export default function Dashboard() {
   // Route protection - redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      console.log(`[${CURRENT_TIMESTAMP}] User not authenticated, redirecting to login`);
+      console.log(`[${new Date().toISOString()}] User not authenticated, redirecting to login`);
       router.push('/?openModal=login');
     }
   }, [isAuthenticated, isLoading, router]);
@@ -46,25 +46,27 @@ export default function Dashboard() {
       const welcome = searchParams.get('welcome');
       
       if (welcome === 'true') {
-        console.log(`[${CURRENT_TIMESTAMP}] Welcome parameter detected, enabling onboarding`);
+        console.log(`[${new Date().toISOString()}] Welcome parameter detected, enabling onboarding`);
         setShowOnboarding(true);
       }
       
       // If showOnboarding is true (from context), show the wizard
       if (showOnboarding && !showOnboardingWizard) {
-        console.log(`[${CURRENT_TIMESTAMP}] Showing onboarding wizard to ${user?.name || 'user'}`);
+        console.log(`[${new Date().toISOString()}] Showing onboarding wizard to ${user?.name || 'user'}`);
         setShowOnboardingWizard(true);
       }
     }
   }, [isAuthenticated, isLoading, searchParams, user, showOnboarding, showOnboardingWizard, setShowOnboarding]);
   
-  // Handle onboarding completion
-  const handleOnboardingComplete = async () => {
+  // Handle onboarding completion - UPDATED to accept preferences
+  const handleOnboardingComplete = async (preferences: any) => {
     try {
-      console.log(`[${CURRENT_TIMESTAMP}] Completing onboarding for user: ${user?.email}`);
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] Completing onboarding for user: ${user?.email}`);
+      console.log(`[${timestamp}] With preferences:`, JSON.stringify(preferences));
       
-      // Call the AuthContext function to update server and state
-      await completeOnboarding();
+      // Call the AuthContext function with preferences
+      await completeOnboarding(preferences);
       
       // Update local UI state
       setShowOnboardingWizard(false);
@@ -74,9 +76,9 @@ export default function Dashboard() {
         router.replace('/dashboard');
       }
       
-      console.log(`[${CURRENT_TIMESTAMP}] Onboarding completed successfully`);
+      console.log(`[${timestamp}] Onboarding completed successfully`);
     } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error completing onboarding:`, error);
+      console.error(`[${new Date().toISOString()}] Error completing onboarding:`, error);
       // Still close the wizard even if there's an error
       setShowOnboardingWizard(false);
     }
@@ -393,7 +395,7 @@ export default function Dashboard() {
       <div className="md:hidden h-20"></div>
 
       {/* Onboarding Wizard for new users */}
-      {showOnboardingWizard && (
+     {showOnboardingWizard && (
         <OnboardingWizard onComplete={handleOnboardingComplete} />
       )}
     </div>
