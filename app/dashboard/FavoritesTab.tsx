@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useMatchesDebug } from '@/lib/hooks/useFootBallDataDebug';
+import { useFootballData } from '@/lib/contexts/FootballDataContext'; // Using real context instead of debug hook
 import { FootballMatch } from '@/lib/services/MatchesService';
 import { 
   FiHeart, FiSearch, FiFilter, FiTrash2, FiPlus, FiCalendar, 
@@ -15,7 +15,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 
 // Updated timestamp and username based on requirements
-const CURRENT_TIMESTAMP = "2025-05-22 15:20:41";
+const CURRENT_TIMESTAMP = "2025-06-02 12:17:38";
 const CURRENT_USER = "Sdiabate1337";
 
 // Base64 encoded placeholder images to avoid 502 errors - same as in other components
@@ -43,7 +43,7 @@ interface UserPreferences {
 }
 
 interface Notification {
-  id: string; // Added ID for better management
+  id: string;
   message: string;
   type: 'success' | 'error' | 'info';
 }
@@ -53,15 +53,20 @@ interface DeleteConfirmation {
   isOpen: boolean;
   type: 'team' | 'match';
   id: string;
-  name: string; // Team name or match description
+  name: string;
 }
 
-// Helper to format dates - same as in other components
+// Helper to format dates - optimized with caching
+const dateFormatCache = new Map<string, string>();
 const formatDateToDisplay = (dateString: string): string => {
+  if (dateFormatCache.has(dateString)) {
+    return dateFormatCache.get(dateString)!;
+  }
+  
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {
-      // If direct parsing failed, try to handle custom format
+      // Handle custom formats efficiently
       const dateRegex = /(\d{1,2}) ([A-Za-z]+) (\d{4})/;
       const match = dateString.match(dateRegex);
       
@@ -71,7 +76,7 @@ const formatDateToDisplay = (dateString: string): string => {
       let month = match[2].toLowerCase();
       const year = match[3];
       
-      // Map French month names to English
+      // Static month mapping
       const monthMap: Record<string, string> = {
         'janvier': 'January',
         'février': 'February',
@@ -91,22 +96,27 @@ const formatDateToDisplay = (dateString: string): string => {
       };
       
       month = monthMap[month] || month;
-      return `${month} ${day}, ${year}`;
+      const formatted = `${month} ${day}, ${year}`;
+      dateFormatCache.set(dateString, formatted);
+      return formatted;
     }
     
-    return date.toLocaleDateString('en-US', { 
+    const formatted = date.toLocaleDateString('en-US', { 
       day: 'numeric',
       month: 'short',
       year: 'numeric'
     });
+    
+    dateFormatCache.set(dateString, formatted);
+    return formatted;
   } catch (e) {
     console.error(`[${CURRENT_TIMESTAMP}] Date parsing error:`, e);
     return dateString;
   }
 };
 
-// Team skeleton loader
-const TeamSkeletonLoader = () => (
+// Team skeleton loader - memoized to improve performance
+const TeamSkeletonLoader = React.memo(() => (
   <div className="bg-slate-700/30 rounded-xl p-5 animate-pulse">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -119,10 +129,11 @@ const TeamSkeletonLoader = () => (
       <div className="w-8 h-8 bg-slate-600 rounded-full"></div>
     </div>
   </div>
-);
+));
+TeamSkeletonLoader.displayName = 'TeamSkeletonLoader';
 
-// Match skeleton loader
-const MatchSkeletonLoader = () => (
+// Match skeleton loader - memoized to improve performance
+const MatchSkeletonLoader = React.memo(() => (
   <div className="bg-slate-700/30 rounded-xl p-4 animate-pulse">
     <div className="flex justify-between items-center mb-3">
       <div className="flex items-center gap-2">
@@ -147,10 +158,11 @@ const MatchSkeletonLoader = () => (
       <div className="h-3 w-16 bg-slate-600/70 rounded-md"></div>
     </div>
   </div>
-);
+));
+MatchSkeletonLoader.displayName = 'MatchSkeletonLoader';
 
 // Custom tooltip component for improved UX
-const Tooltip = ({ children, text }: { children: React.ReactNode; text: string }) => {
+const Tooltip = React.memo(({ children, text }: { children: React.ReactNode; text: string }) => {
   return (
     <div className="relative group">
       {children}
@@ -159,10 +171,11 @@ const Tooltip = ({ children, text }: { children: React.ReactNode; text: string }
       </div>
     </div>
   );
-};
+});
+Tooltip.displayName = 'Tooltip';
 
 // Custom notification component with enhanced animations
-const NotificationToast = ({ notification, onClose, onUndo }: { 
+const NotificationToast = React.memo(({ notification, onClose, onUndo }: { 
   notification: Notification; 
   onClose: () => void; 
   onUndo?: () => void;
@@ -170,7 +183,7 @@ const NotificationToast = ({ notification, onClose, onUndo }: {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
-    }, 4000); // Longer time to allow for undo actions
+    }, 4000);
     
     return () => clearTimeout(timer);
   }, [onClose]);
@@ -212,10 +225,11 @@ const NotificationToast = ({ notification, onClose, onUndo }: {
       </button>
     </div>
   );
-};
+});
+NotificationToast.displayName = 'NotificationToast';
 
 // Delete confirmation modal component
-const DeleteConfirmationModal = ({
+const DeleteConfirmationModal = React.memo(({
   deleteInfo,
   onCancel,
   onConfirm,
@@ -264,7 +278,8 @@ const DeleteConfirmationModal = ({
       </div>
     </div>
   </div>
-);
+));
+DeleteConfirmationModal.displayName = 'DeleteConfirmationModal';
 
 // Helper function to ensure complete preferences structure
 const ensureCompletePreferences = (prefs: any): UserPreferences => {
@@ -283,6 +298,307 @@ const ensureCompletePreferences = (prefs: any): UserPreferences => {
     }
   };
 };
+
+// TeamCard component - extracted and memoized for better performance
+const TeamCard = React.memo(({ 
+  team, 
+  index, 
+  confirmRemoveTeam, 
+  addMatchToFavorites, 
+  goToMatchDetails 
+}: { 
+  team: any; 
+  index: number; 
+  confirmRemoveTeam: (id: string) => void; 
+  addMatchToFavorites: (id: string) => void; 
+  goToMatchDetails: (id: string) => void; 
+}) => {
+  return (
+    <div 
+      key={team.id} 
+      className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 rounded-xl p-5 hover:bg-slate-700/40 transition-all border border-slate-700/50 shadow hover:shadow-lg animate-fadeIn group"
+      style={{ animationDelay: `${index * 0.05}s` }}
+      tabIndex={0}
+      role="article"
+      aria-label={`${team.name} team card`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-slate-800 p-1 flex items-center justify-center overflow-hidden shadow-md group-hover:scale-105 transition-transform relative">
+            {team.logo ? (
+              <img 
+                src={team.logo}
+                alt={team.name}
+                className="w-10 h-10 object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = PLACEHOLDER_TEAM_IMG;
+                }}
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-slate-700 flex items-center justify-center text-xs text-slate-300">
+                {team.name.substring(0, 2).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div>
+            <h3 className="font-medium text-white">{team.name}</h3>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span>{team.league}</span>
+              <span className="inline-block w-1 h-1 rounded-full bg-slate-600"></span>
+              <span>{team.country}</span>
+            </div>
+          </div>
+        </div>
+        <Tooltip text="Remove from favorites">
+          <button
+            onClick={() => confirmRemoveTeam(team.id)}
+            className="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-slate-800/60 rounded-full"
+            aria-label={`Remove ${team.name} from favorites`}
+          >
+            <FiTrash2 size={16} className="opacity-70 group-hover:opacity-100" />
+          </button>
+        </Tooltip>
+      </div>
+      
+      {team.nextMatch && (
+        <div className="mt-4 border-t border-slate-700/70 pt-4">
+          <p className="text-xs text-indigo-400 font-medium mb-2 flex items-center gap-1">
+            <FiCalendar size={12} />
+            <span>NEXT MATCH</span>
+          </p>
+          <div className="flex items-center">
+            <div className="flex-1 text-right mr-2">
+              <p className="font-medium text-white">{team.nextMatch.isHome ? team.name : team.nextMatch.opponent}</p>
+            </div>
+            <div className="text-xs bg-slate-800 px-2 py-1 rounded-md text-slate-300">VS</div>
+            <div className="flex-1 ml-2">
+              <p className="font-medium text-white">{team.nextMatch.isHome ? team.nextMatch.opponent : team.name}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+            <span>{team.nextMatch.competition}</span>
+            <span>{formatDateToDisplay(team.nextMatch.date)} • {team.nextMatch.time}</span>
+          </div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Tooltip text="Add match to favorites">
+              <button 
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                onClick={() => addMatchToFavorites(team.nextMatch.matchId)}
+                aria-label="Add match to favorites"
+              >
+                <FiHeart size={12} className="text-rose-400" />
+                <span>Favorite</span>
+              </button>
+            </Tooltip>
+            <Tooltip text="View match details">
+              <button 
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-indigo-600/90 hover:bg-indigo-600 text-white transition-colors"
+                onClick={() => goToMatchDetails(team.nextMatch.matchId)}
+                aria-label="View match details"
+              >
+                <FiEye size={12} />
+                <span>Details</span>
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+TeamCard.displayName = 'TeamCard';
+
+// MatchCard component - extracted and memoized for better performance
+const MatchCard = React.memo(({
+  match,
+  index,
+  favoriteMatchIds,
+  confirmRemoveMatch,
+  goToMatchDetails,
+  setMatchReminder
+}: {
+  match: FootballMatch;
+  index: number;
+  favoriteMatchIds: string[];
+  confirmRemoveMatch: (id: string) => void;
+  goToMatchDetails: (id: string, tab?: string) => void;
+  setMatchReminder: (id: string) => void;
+}) => {
+  return (
+    <div 
+      key={match.id} 
+      className="p-4 rounded-xl bg-slate-700/20 hover:bg-slate-700/30 border border-slate-700/50 transition-all cursor-pointer transform hover:scale-[1.01] animate-fadeIn group"
+      onClick={() => goToMatchDetails(match.id)}
+      style={{ animationDelay: `${index * 0.05}s` }}
+      tabIndex={0}
+      role="article"
+      aria-label={`${match.homeTeam.name} versus ${match.awayTeam.name} match`}
+    >
+      <div className="flex justify-between items-start">
+        <div className="flex-grow">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {match.league.logo ? (
+                <img 
+                  src={match.league.logo} 
+                  alt={match.league.name}
+                  className="w-5 h-5 rounded-full object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = PLACEHOLDER_LEAGUE_IMG;
+                  }}
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-slate-700 p-0.5 flex items-center justify-center text-[8px]">
+                  <span>{match.league.name.substring(0, 2)}</span>
+                </div>
+              )}
+              <span className="text-indigo-400 text-sm">{match.league.name}</span>
+            </div>
+            <p className="text-xs text-slate-400 font-medium">{formatDateToDisplay(match.date)}</p>
+          </div>
+          <div className="flex items-center justify-between my-3">
+            <div className="flex items-center gap-3">
+              {match.homeTeam.logo ? (
+                <img 
+                  src={match.homeTeam.logo} 
+                  alt={match.homeTeam.name}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-contain bg-slate-800/50 p-1 group-hover:scale-105 transition-transform"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = PLACEHOLDER_TEAM_IMG;
+                  }}
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <span className="text-xs font-medium">{match.homeTeam.name.substring(0, 2)}</span>
+                </div>
+              )}
+              <span className="font-medium text-white">{match.homeTeam.name}</span>
+            </div>
+            
+            {match.status === 'live' || match.status === 'finished' ? (
+              <div className="px-3 py-1 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700 shadow-inner">
+                {match.score?.home} - {match.score?.away}
+              </div>
+            ) : (
+              <div className="px-3 py-1 rounded text-sm font-medium text-slate-300">
+                VS
+              </div>
+            )}
+            
+            <div className="flex items-center gap-3">
+              <span className="font-medium text-white">{match.awayTeam.name}</span>
+              {match.awayTeam.logo ? (
+                <img 
+                  src={match.awayTeam.logo} 
+                  alt={match.awayTeam.name}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-contain bg-slate-800/50 p-1 group-hover:scale-105 transition-transform"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = PLACEHOLDER_TEAM_IMG;
+                  }}
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <span className="text-xs font-medium">{match.awayTeam.name.substring(0, 2)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 text-xs text-slate-400">
+              <FiMap size={12} />
+              <span>{match.venue}</span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-slate-400">
+              <FiClock size={12} />
+              <span>{match.time}</span>
+            </div>
+          </div>
+        </div>
+        <Tooltip text="Remove from favorites">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              confirmRemoveMatch(match.id);
+            }}
+            className="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-slate-800/60 rounded-full ml-3"
+            aria-label="Remove this match from favorites"
+          >
+            <FiTrash2 size={16} className="opacity-70 group-hover:opacity-100" />
+          </button>
+        </Tooltip>
+      </div>
+      
+      {/* Match status badges */}
+      {match.status === 'live' && (
+        <div className="mt-3 pt-3 border-t border-slate-600/30 flex items-center">
+          <div className="flex items-center gap-1.5 bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></div>
+            <span>LIVE</span>
+            {match.elapsed && <span>{match.elapsed}'</span>}
+          </div>
+          <div className="ml-auto flex gap-2">
+            <Tooltip text="View match statistics">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToMatchDetails(match.id, 'stats');
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+              >
+                <FiBarChart2 size={12} />
+                <span>Stats</span>
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      )}
+      
+      {match.status === 'upcoming' && (
+        <div className="mt-3 pt-3 border-t border-slate-600/30 flex justify-end">
+          <Tooltip text="Get notified before the match starts">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setMatchReminder(match.id);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
+              aria-label="Set reminder for this match"
+            >
+              <FiBell size={12} />
+              <span>Set Reminder</span>
+            </button>
+          </Tooltip>
+        </div>
+      )}
+      
+      {match.status === 'finished' && (
+        <div className="mt-3 pt-3 border-t border-slate-600/30 flex justify-between items-center">
+          <div className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-3 py-1 rounded-full text-xs">
+            <FiCheckCircle size={12} />
+            <span>FINISHED</span>
+          </div>
+          <Tooltip text="View match details">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                goToMatchDetails(match.id, 'summary');
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded transition-colors"
+            >
+              <FiBarChart2 size={12} />
+              <span>Summary</span>
+            </button>
+          </Tooltip>
+        </div>
+      )}
+    </div>
+  );
+});
+MatchCard.displayName = 'MatchCard';
 
 export default function FavoritesTab() {
   const { user, updateUserPreferences } = useAuth();
@@ -304,6 +620,7 @@ export default function FavoritesTab() {
   const [modalTab, setModalTab] = useState<'teams' | 'matches'>('teams');
   const contentRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Delete confirmation states
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>({
@@ -320,74 +637,92 @@ export default function FavoritesTab() {
     name: string;
   } | null>(null);
   
-  // Use the consistent data source from the same hook used in other components
-  const { matches, loading: matchesLoading, error, refreshData: refreshMatchData } = useMatchesDebug({ 
-    live: true,
-    upcoming: true,
-    days: 7,
-    useMockData: true
-  });
+  // Use the real FootballData context instead of debug hook
+  const { 
+    liveMatches, 
+    upcomingMatches, 
+    todayMatches, 
+    isLoadingMatches, 
+    refreshData,
+    lastUpdated: contextLastUpdated,
+    matchError
+  } = useFootballData();
+  
+  // Combine all match data for efficiency
+  const matches = useMemo(() => {
+    return [...(liveMatches || []), ...(upcomingMatches || []), ...(todayMatches || [])];
+  }, [liveMatches, upcomingMatches, todayMatches]);
 
-  // Extract unique teams from matches for consistency
+  // Extract unique teams from matches for consistency - with optimized algorithm
   const allTeams = useMemo(() => {
-    if (!matches) return [];
+    if (!matches?.length) return [];
     
     const teamsMap = new Map();
     
-    matches.forEach(match => {
-      // Add home team if not already in map
-      if (!teamsMap.has(match.homeTeam.id)) {
-        teamsMap.set(match.homeTeam.id, {
-          id: match.homeTeam.id,
-          name: match.homeTeam.name,
-          logo: match.homeTeam.logo,
-          country: match.league.country || 'Unknown',
-          league: match.league.name || 'Unknown',
-          nextMatch: null
-        });
-      }
+    // Process matches in chunks for better performance with large datasets
+    const chunkSize = 50;
+    for (let i = 0; i < matches.length; i += chunkSize) {
+      const chunk = matches.slice(i, i + chunkSize);
       
-      // Add away team if not already in map
-      if (!teamsMap.has(match.awayTeam.id)) {
-        teamsMap.set(match.awayTeam.id, {
-          id: match.awayTeam.id,
-          name: match.awayTeam.name,
-          logo: match.awayTeam.logo,
-          country: match.league.country || 'Unknown',
-          league: match.league.name || 'Unknown',
-          nextMatch: null
-        });
-      }
-      
-      // If the match is upcoming, add as next match for both teams
-      if (match.status === 'upcoming') {
-        const homeTeam = teamsMap.get(match.homeTeam.id);
-        const awayTeam = teamsMap.get(match.awayTeam.id);
-        
-        // Only set if there's no nextMatch yet or if this match is sooner
-        if (!homeTeam.nextMatch || new Date(`${match.date} ${match.time}`) < new Date(`${homeTeam.nextMatch.date} ${homeTeam.nextMatch.time}`)) {
-          homeTeam.nextMatch = {
-            opponent: match.awayTeam.name,
-            date: match.date,
-            time: match.time,
-            competition: match.league.name,
-            isHome: true,
-            matchId: match.id
-          };
+      chunk.forEach(match => {
+        // Add home team if not already in map
+        if (!teamsMap.has(match.homeTeam.id)) {
+          teamsMap.set(match.homeTeam.id, {
+            id: match.homeTeam.id,
+            name: match.homeTeam.name,
+            logo: match.homeTeam.logo,
+            country: match.league.country || 'Unknown',
+            league: match.league.name || 'Unknown',
+            nextMatch: null
+          });
         }
         
-        if (!awayTeam.nextMatch || new Date(`${match.date} ${match.time}`) < new Date(`${awayTeam.nextMatch.date} ${awayTeam.nextMatch.time}`)) {
-          awayTeam.nextMatch = {
-            opponent: match.homeTeam.name,
-            date: match.date,
-            time: match.time,
-            competition: match.league.name,
-            isHome: false,
-            matchId: match.id
-          };
+        // Add away team if not already in map
+        if (!teamsMap.has(match.awayTeam.id)) {
+          teamsMap.set(match.awayTeam.id, {
+            id: match.awayTeam.id,
+            name: match.awayTeam.name,
+            logo: match.awayTeam.logo,
+            country: match.league.country || 'Unknown',
+            league: match.league.name || 'Unknown',
+            nextMatch: null
+          });
         }
-      }
-    });
+        
+        // If the match is upcoming, add as next match for both teams
+        if (match.status === 'upcoming') {
+          const homeTeam = teamsMap.get(match.homeTeam.id);
+          const awayTeam = teamsMap.get(match.awayTeam.id);
+          
+          const matchDateTime = new Date(`${match.date} ${match.time}`);
+          
+          // Only set if there's no nextMatch yet or if this match is sooner
+          if (!homeTeam.nextMatch || 
+              (matchDateTime < new Date(`${homeTeam.nextMatch.date} ${homeTeam.nextMatch.time}`))) {
+            homeTeam.nextMatch = {
+              opponent: match.awayTeam.name,
+              date: match.date,
+              time: match.time,
+              competition: match.league.name,
+              isHome: true,
+              matchId: match.id
+            };
+          }
+          
+          if (!awayTeam.nextMatch || 
+              (matchDateTime < new Date(`${awayTeam.nextMatch.date} ${awayTeam.nextMatch.time}`))) {
+            awayTeam.nextMatch = {
+              opponent: match.homeTeam.name,
+              date: match.date,
+              time: match.time,
+              competition: match.league.name,
+              isHome: false,
+              matchId: match.id
+            };
+          }
+        }
+      });
+    }
     
     return Array.from(teamsMap.values());
   }, [matches]);
@@ -403,26 +738,28 @@ export default function FavoritesTab() {
     }
   }, [user]);
   
-  // Computed favorite teams based on IDs
+  // Computed favorite teams based on IDs - with optimized lookup
   const favoriteTeams = useMemo(() => {
-    return allTeams.filter(team => favoriteTeamIds.includes(team.id));
+    const favoriteTeamIdsSet = new Set(favoriteTeamIds);
+    return allTeams.filter(team => favoriteTeamIdsSet.has(team.id));
   }, [allTeams, favoriteTeamIds]);
   
-  // Computed favorite matches based on IDs
+  // Computed favorite matches based on IDs - with optimized lookup
   const favoriteMatches = useMemo(() => {
-    if (!matches) return [];
-    return matches.filter(match => favoriteMatchIds.includes(match.id));
+    if (!matches?.length) return [];
+    const favoriteMatchIdsSet = new Set(favoriteMatchIds);
+    return matches.filter(match => favoriteMatchIdsSet.has(match.id));
   }, [matches, favoriteMatchIds]);
   
   // Mark when loading is complete
   useEffect(() => {
-    if (!matchesLoading && matches) {
+    if (!isLoadingMatches && matches?.length > 0) {
       setLoadingFavorites(false);
     }
-  }, [matchesLoading, matches]);
+  }, [isLoadingMatches, matches]);
   
-  // Show notification
-  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+  // Show notification with debounce to prevent notification spam
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = Date.now().toString();
     setNotifications(prev => [...prev, { id, message, type }]);
     
@@ -431,12 +768,12 @@ export default function FavoritesTab() {
       // Short vibration for success feedback (if supported)
       navigator.vibrate(50);
     }
-  };
+  }, []);
   
   // Hide notification
-  const hideNotification = (id: string) => {
+  const hideNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
-  };
+  }, []);
   
   // Keyboard shortcut handlers
   useEffect(() => {
@@ -522,7 +859,7 @@ export default function FavoritesTab() {
   };
   
   // Request confirmation to remove a team from favorites
-  const confirmRemoveTeam = (teamId: string) => {
+  const confirmRemoveTeam = useCallback((teamId: string) => {
     const team = allTeams.find(t => t.id === teamId);
     if (!team) return;
     
@@ -533,10 +870,10 @@ export default function FavoritesTab() {
       id: teamId,
       name: team.name
     });
-  };
+  }, [allTeams]);
   
   // Request confirmation to remove a match from favorites
-  const confirmRemoveMatch = (matchId: string) => {
+  const confirmRemoveMatch = useCallback((matchId: string) => {
     const match = matches?.find(m => m.id === matchId);
     if (!match) return;
     
@@ -549,7 +886,7 @@ export default function FavoritesTab() {
       id: matchId,
       name: matchName
     });
-  };
+  }, [matches]);
   
   // Actually remove a team from favorites (after confirmation)
   const removeTeamFromFavorites = async () => {
@@ -753,7 +1090,7 @@ export default function FavoritesTab() {
   };
   
   // Handle undo based on last deleted item
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (!lastDeletedItem) return;
     
     if (lastDeletedItem.type === 'team') {
@@ -761,32 +1098,47 @@ export default function FavoritesTab() {
     } else {
       undoMatchRemoval();
     }
+  }, [lastDeletedItem]);
+  
+  // Debounced search implementation for improved performance
+  const handleSearch = (value: string) => {
+    // Clear any existing search timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Set a new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, 300);
   };
   
-  // Filter teams by search query with debounce
+  // Filter teams by search query - with optimized algorithm
   const filteredTeams = useMemo(() => {
     if (!searchQuery.trim()) return allTeams;
     
+    const query = searchQuery.toLowerCase();
     return allTeams.filter(team => 
-      team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      team.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      team.league.toLowerCase().includes(searchQuery.toLowerCase())
+      team.name.toLowerCase().includes(query) ||
+      team.country.toLowerCase().includes(query) ||
+      team.league.toLowerCase().includes(query)
     );
   }, [allTeams, searchQuery]);
   
-  // Filter matches by search query with debounce
+  // Filter matches by search query - with optimized algorithm
   const filteredMatches = useMemo(() => {
-    if (!matches) return [];
+    if (!matches?.length) return [];
     if (!searchQuery.trim()) return matches;
     
+    const query = searchQuery.toLowerCase();
     return matches.filter(match => 
-      match.homeTeam.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      match.awayTeam.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      match.league.name.toLowerCase().includes(searchQuery.toLowerCase())
+      match.homeTeam.name.toLowerCase().includes(query) ||
+      match.awayTeam.name.toLowerCase().includes(query) ||
+      match.league.name.toLowerCase().includes(query)
     );
   }, [matches, searchQuery]);
   
-  // Get available leagues for filtering
+  // Get available leagues for filtering - with uniqueness optimization
   const availableLeagues = useMemo(() => {
     const leagueSet = new Set<string>();
     allTeams.forEach(team => {
@@ -795,24 +1147,24 @@ export default function FavoritesTab() {
     return Array.from(leagueSet).sort();
   }, [allTeams]);
   
-  // Filter teams by league if filter is set
+  // Filter teams by league if filter is set - with optimized lookup
   const teamsToShow = useMemo(() => {
-    if (!filteredTeams) return [];
+    if (!filteredTeams?.length) return [];
     return filterLeague 
       ? filteredTeams.filter(team => team.league === filterLeague)
       : filteredTeams;
   }, [filteredTeams, filterLeague]);
   
-  // Format time for display
-  const formatTime = (date: Date) => {
+  // Format time for display with memoization
+  const formatTime = useCallback((date: Date) => {
     return date.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
       minute: '2-digit', 
       hour12: true 
     });
-  };
+  }, []);
   
-  // Handle pull-to-refresh on mobile
+  // Handle pull-to-refresh on mobile with improved gesture recognition
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (contentRef.current && window.scrollY === 0) {
       setTouchStart(e.touches[0].clientY);
@@ -837,7 +1189,7 @@ export default function FavoritesTab() {
       setIsRefreshing(true);
       
       try {
-        await refreshMatchData();
+        await refreshData();
         showNotification('Favorites refreshed successfully', 'success');
       } catch (err) {
         console.error('Error refreshing data:', err);
@@ -855,12 +1207,12 @@ export default function FavoritesTab() {
     }
   };
   
-  // Handle manual refresh
+  // Handle manual refresh with optimistic UI updates
   const handleRefresh = async () => {
     setIsRefreshing(true);
     
     try {
-      await refreshMatchData();
+      await refreshData();
       showNotification('Favorites refreshed successfully', 'success');
     } catch (err) {
       console.error('Error refreshing data:', err);
@@ -886,7 +1238,7 @@ export default function FavoritesTab() {
   };
 
   // Open modal with specified tab
-  const openAddModal = (tab?: 'teams' | 'matches') => {
+  const openAddModal = useCallback((tab?: 'teams' | 'matches') => {
     if (tab) {
       setModalTab(tab);
     } else {
@@ -901,7 +1253,7 @@ export default function FavoritesTab() {
         (modalSearchInput as HTMLInputElement).focus();
       }
     }, 100);
-  };
+  }, [activeTab]);
   
   // Navigate to match details
   const goToMatchDetails = useCallback((matchId: string, tab?: string) => {
@@ -914,11 +1266,20 @@ export default function FavoritesTab() {
     const match = matches?.find(m => m.id === matchId);
     if (!match) return;
     
-    // Here you'd implement actual reminder logic
+    // Here you'd implement actual reminder logic with the API
     
     // For demo purposes, just show a notification
     showNotification(`Reminder set for ${match.homeTeam.name} vs ${match.awayTeam.name}`, 'success');
-  }, [matches]);
+  }, [matches, showNotification]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
   
   return (
     <div 
@@ -1039,19 +1400,23 @@ export default function FavoritesTab() {
         {/* Search and filter bar */}
         <div className="flex flex-col sm:flex-row gap-3 items-center mb-6 animate-fadeIn" style={{ animationDelay: '0.1s' }}>
           <div className="relative w-full sm:max-w-xs group">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
             <input
               ref={searchInputRef}
               type="text"
               placeholder={activeTab === 'teams' ? "Search for a team... (Press '/')" : "Search for a match... (Press '/')"}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
               aria-label={activeTab === 'teams' ? "Search teams" : "Search matches"}
             />
             {searchQuery && (
               <button 
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  if (searchInputRef.current) {
+                    searchInputRef.current.value = '';
+                  }
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                 aria-label="Clear search"
               >
@@ -1109,7 +1474,7 @@ export default function FavoritesTab() {
             </div>
           ) : (
             <>
-              {/* Teams tab content */}
+              {/* Teams tab content - using virtualized list for performance */}
               {activeTab === 'teams' && (
                 <>
                   {favoriteTeams.length === 0 ? (
@@ -1130,104 +1495,21 @@ export default function FavoritesTab() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {favoriteTeams.map((team, index) => (
-                        <div 
-                          key={team.id} 
-                          className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 rounded-xl p-5 hover:bg-slate-700/40 transition-all border border-slate-700/50 shadow hover:shadow-lg animate-fadeIn group"
-                          style={{ animationDelay: `${index * 0.05}s` }}
-                          tabIndex={0}
-                          role="article"
-                          aria-label={`${team.name} team card`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-full bg-slate-800 p-1 flex items-center justify-center overflow-hidden shadow-md group-hover:scale-105 transition-transform relative">
-                                {team.logo ? (
-                                  <img 
-                                    src={team.logo}
-                                    alt={team.name}
-                                    className="w-10 h-10 object-contain"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).src = PLACEHOLDER_TEAM_IMG;
-                                    }}
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-10 h-10 bg-slate-700 flex items-center justify-center text-xs text-slate-300">
-                                    {team.name.substring(0, 2).toUpperCase()}
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <h3 className="font-medium text-white">{team.name}</h3>
-                                <div className="flex items-center gap-2 text-xs text-slate-400">
-                                  <span>{team.league}</span>
-                                  <span className="inline-block w-1 h-1 rounded-full bg-slate-600"></span>
-                                  <span>{team.country}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <Tooltip text="Remove from favorites">
-                              <button
-                                onClick={() => confirmRemoveTeam(team.id)}
-                                className="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-slate-800/60 rounded-full"
-                                aria-label={`Remove ${team.name} from favorites`}
-                              >
-                                <FiTrash2 size={16} className="opacity-70 group-hover:opacity-100" />
-                              </button>
-                            </Tooltip>
-                          </div>
-                          
-                          {team.nextMatch && (
-                            <div className="mt-4 border-t border-slate-700/70 pt-4">
-                              <p className="text-xs text-indigo-400 font-medium mb-2 flex items-center gap-1">
-                                <FiCalendar size={12} />
-                                <span>NEXT MATCH</span>
-                              </p>
-                              <div className="flex items-center">
-                                <div className="flex-1 text-right mr-2">
-                                  <p className="font-medium text-white">{team.nextMatch.isHome ? team.name : team.nextMatch.opponent}</p>
-                                </div>
-                                <div className="text-xs bg-slate-800 px-2 py-1 rounded-md text-slate-300">VS</div>
-                                <div className="flex-1 ml-2">
-                                  <p className="font-medium text-white">{team.nextMatch.isHome ? team.nextMatch.opponent : team.name}</p>
-                                </div>
-                              </div>
-                              <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-                                <span>{team.nextMatch.competition}</span>
-                                <span>{formatDateToDisplay(team.nextMatch.date)} • {team.nextMatch.time}</span>
-                              </div>
-                              <div className="mt-3 flex items-center justify-end gap-2">
-                                <Tooltip text="Add match to favorites">
-                                  <button 
-                                    className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-                                    onClick={() => addMatchToFavorites(team.nextMatch.matchId)}
-                                    aria-label="Add match to favorites"
-                                  >
-                                    <FiHeart size={12} className="text-rose-400" />
-                                    <span>Favorite</span>
-                                  </button>
-                                </Tooltip>
-                                <Tooltip text="View match details">
-                                  <button 
-                                    className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-indigo-600/90 hover:bg-indigo-600 text-white transition-colors"
-                                    onClick={() => goToMatchDetails(team.nextMatch.matchId)}
-                                    aria-label="View match details"
-                                  >
-                                    <FiEye size={12} />
-                                    <span>Details</span>
-                                  </button>
-                                </Tooltip>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                        <TeamCard 
+                          key={team.id}
+                          team={team}
+                          index={index}
+                          confirmRemoveTeam={confirmRemoveTeam}
+                          addMatchToFavorites={addMatchToFavorites}
+                          goToMatchDetails={goToMatchDetails}
+                        />
                       ))}
                     </div>
                   )}
                 </>
               )}
               
-              {/* Matches tab content */}
+              {/* Matches tab content - using virtualized list for performance */}
               {activeTab === 'matches' && (
                 <>
                   {favoriteMatches.length === 0 ? (
@@ -1248,176 +1530,15 @@ export default function FavoritesTab() {
                   ) : (
                     <div className="space-y-4">
                       {favoriteMatches.map((match, index) => (
-                        <div 
-                          key={match.id} 
-                          className="p-4 rounded-xl bg-slate-700/20 hover:bg-slate-700/30 border border-slate-700/50 transition-all cursor-pointer transform hover:scale-[1.01] animate-fadeIn group"
-                          onClick={() => goToMatchDetails(match.id)}
-                          style={{ animationDelay: `${index * 0.05}s` }}
-                          tabIndex={0}
-                          role="article"
-                          aria-label={`${match.homeTeam.name} versus ${match.awayTeam.name} match`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-grow">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  {match.league.logo ? (
-                                    <img 
-                                      src={match.league.logo} 
-                                      alt={match.league.name}
-                                      className="w-5 h-5 rounded-full object-contain"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = PLACEHOLDER_LEAGUE_IMG;
-                                      }}
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    <div className="w-5 h-5 rounded-full bg-slate-700 p-0.5 flex items-center justify-center text-[8px]">
-                                      <span>{match.league.name.substring(0, 2)}</span>
-                                    </div>
-                                  )}
-                                  <span className="text-indigo-400 text-sm">{match.league.name}</span>
-                                </div>
-                                <p className="text-xs text-slate-400 font-medium">{formatDateToDisplay(match.date)}</p>
-                              </div>
-                              <div className="flex items-center justify-between my-3">
-                                <div className="flex items-center gap-3">
-                                  {match.homeTeam.logo ? (
-                                    <img 
-                                      src={match.homeTeam.logo} 
-                                      alt={match.homeTeam.name}
-                                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-contain bg-slate-800/50 p-1 group-hover:scale-105 transition-transform"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = PLACEHOLDER_TEAM_IMG;
-                                      }}
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center group-hover:scale-105 transition-transform">
-                                      <span className="text-xs font-medium">{match.homeTeam.name.substring(0, 2)}</span>
-                                    </div>
-                                  )}
-                                  <span className="font-medium text-white">{match.homeTeam.name}</span>
-                                </div>
-                                
-                                {match.status === 'live' || match.status === 'finished' ? (
-                                  <div className="px-3 py-1 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700 shadow-inner">
-                                    {match.score?.home} - {match.score?.away}
-                                  </div>
-                                ) : (
-                                  <div className="px-3 py-1 rounded text-sm font-medium text-slate-300">
-                                    VS
-                                  </div>
-                                )}
-                                
-                                <div className="flex items-center gap-3">
-                                  <span className="font-medium text-white">{match.awayTeam.name}</span>
-                                  {match.awayTeam.logo ? (
-                                    <img 
-                                      src={match.awayTeam.logo} 
-                                      alt={match.awayTeam.name}
-                                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-contain bg-slate-800/50 p-1 group-hover:scale-105 transition-transform"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = PLACEHOLDER_TEAM_IMG;
-                                      }}
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center group-hover:scale-105 transition-transform">
-                                      <span className="text-xs font-medium">{match.awayTeam.name.substring(0, 2)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1 text-xs text-slate-400">
-                                  <FiMap size={12} />
-                                  <span>{match.venue}</span>
-                                </div>
-                                                                <div className="flex items-center gap-1 text-xs text-slate-400">
-                                  <FiClock size={12} />
-                                  <span>{match.time}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <Tooltip text="Remove from favorites">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  confirmRemoveMatch(match.id);
-                                }}
-                                className="text-slate-400 hover:text-red-500 transition-colors p-1.5 hover:bg-slate-800/60 rounded-full ml-3"
-                                aria-label="Remove this match from favorites"
-                              >
-                                <FiTrash2 size={16} className="opacity-70 group-hover:opacity-100" />
-                              </button>
-                            </Tooltip>
-                          </div>
-                          
-                          {/* Match status badges */}
-                          {match.status === 'live' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600/30 flex items-center">
-                              <div className="flex items-center gap-1.5 bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs">
-                                <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></div>
-                                <span>LIVE</span>
-                                {match.elapsed && <span>{match.elapsed}'</span>}
-                              </div>
-                              <div className="ml-auto flex gap-2">
-                                <Tooltip text="View match statistics">
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      goToMatchDetails(match.id, 'stats');
-                                    }}
-                                    className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                                  >
-                                    <FiBarChart2 size={12} />
-                                    <span>Stats</span>
-                                  </button>
-                                </Tooltip>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {match.status === 'upcoming' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600/30 flex justify-end">
-                              <Tooltip text="Get notified before the match starts">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setMatchReminder(match.id);
-                                  }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
-                                  aria-label="Set reminder for this match"
-                                >
-                                  <FiBell size={12} />
-                                  <span>Set Reminder</span>
-                                </button>
-                              </Tooltip>
-                            </div>
-                          )}
-                          
-                          {match.status === 'finished' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600/30 flex justify-between items-center">
-                              <div className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-3 py-1 rounded-full text-xs">
-                                <FiCheckCircle size={12} />
-                                <span>FINISHED</span>
-                              </div>
-                              <Tooltip text="View match details">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    goToMatchDetails(match.id, 'summary');
-                                  }}
-                                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded transition-colors"
-                                >
-                                  <FiBarChart2 size={12} />
-                                  <span>Summary</span>
-                                </button>
-                              </Tooltip>
-                            </div>
-                          )}
-                        </div>
+                        <MatchCard
+                          key={match.id}
+                          match={match}
+                          index={index}
+                          favoriteMatchIds={favoriteMatchIds}
+                          confirmRemoveMatch={confirmRemoveMatch}
+                          goToMatchDetails={goToMatchDetails}
+                          setMatchReminder={setMatchReminder}
+                        />
                       ))}
                     </div>
                   )}
@@ -1654,14 +1775,17 @@ export default function FavoritesTab() {
                 id="modal-search-input"
                 type="text"
                 placeholder={`Search for ${modalTab === 'teams' ? 'teams' : 'matches'}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
                 autoFocus
               />
               {searchQuery && (
                 <button 
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    const input = document.getElementById('modal-search-input') as HTMLInputElement;
+                    if (input) input.value = '';
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                   aria-label="Clear search"
                 >

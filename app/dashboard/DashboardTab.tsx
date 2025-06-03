@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useMatchesDebug } from '@/lib/hooks/useFootBallDataDebug';
+import { useFootballData } from '@/lib/contexts/FootballDataContext';
 import { FootballMatch } from '@/lib/services/MatchesService';
 import { 
   FiCalendar, FiClock, FiRefreshCw, FiTrendingUp, FiActivity,
@@ -11,8 +11,8 @@ import {
 } from 'react-icons/fi';
 
 // Updated timestamp and user
-const CURRENT_TIMESTAMP = "2025-05-22 14:04:48";
-const CURRENT_USER = "Sdiabate1337i want now to use the same mockdata";
+const CURRENT_TIMESTAMP = "2025-06-02 11:50:50";
+const CURRENT_USER = "Sdiabate1337";
 
 // Base64 encoded placeholder images to avoid 502 errors
 const PLACEHOLDER_LEAGUE_IMG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48cmVjdCB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiMzNDNhNDAiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIxMiIgZmlsbD0iI2ZmZmZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPkw8L3RleHQ+PC9zdmc+";
@@ -46,18 +46,22 @@ export default function DashboardTab() {
   const [favoriteTeams, setFavoriteTeams] = useState<string[]>(['Manchester United', 'Barcelona', 'Bayern Munich']);
   const [favoriteLeagues, setFavoriteLeagues] = useState<string[]>(['Premier League', 'Champions League']);
   
-  // Use the same hook for fetching matches as in the EventsTab
-  const { matches, loading: matchesLoading, error, refreshData: refreshMatchData, debugInfo } = useMatchesDebug({ 
-    live: true,
-    upcoming: true,
-    days: 7,
-    useMockData: true
-  });
+  // Use the FootballDataContext for real data
+  const { 
+    liveMatches, 
+    upcomingMatches, 
+    todayMatches, 
+    isLoadingMatches, 
+    refreshData, 
+    lastUpdated: contextLastUpdated,
+    matchError
+  } = useFootballData();
   
-  // Filter matches by status
-  const liveMatches = matches?.filter(match => match.status === 'live') || [];
-  const upcomingMatches = matches?.filter(match => match.status === 'upcoming') || [];
-  const finishedMatches = matches?.filter(match => match.status === 'finished') || [];
+  // Track the previous contextLastUpdated value to avoid unnecessary updates
+  const prevContextLastUpdatedRef = useRef(contextLastUpdated);
+  
+  // Derive finished matches from today's matches that aren't live or upcoming
+  const finishedMatches = todayMatches.filter(match => match.status === 'finished');
   
   // Format time from timestamp
   const formatTime = (date: Date) => {
@@ -88,21 +92,96 @@ export default function DashboardTab() {
     console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} manually refreshed dashboard data`);
     
     try {
-      await refreshMatchData();
+      await refreshData();
       setLastUpdated(new Date(CURRENT_TIMESTAMP));
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [refreshMatchData]);
+  }, [refreshData]);
   
-  // Load data
+  // FIXED: Split the effects to prevent infinite loop
+  
+  // First effect: Handle loading state only
   useEffect(() => {
-    if (!matchesLoading) {
+    // Only consider loaded when we're not loading AND we have some data to display
+    if (!isLoadingMatches && (
+        (upcomingMatches && upcomingMatches.length > 0) || 
+        (liveMatches && liveMatches.length > 0) ||
+        (finishedMatches && finishedMatches.length > 0) ||
+        matchError
+      )) {
       setLoading(false);
     }
-  }, [matchesLoading]);
+    
+    // Also, if loading is complete but it's been 3 seconds, consider it loaded even without data
+    const timeoutId = setTimeout(() => {
+      if (!isLoadingMatches) {
+        setLoading(false);
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [isLoadingMatches, upcomingMatches, liveMatches, finishedMatches, matchError]);
+  
+  // Second effect: Update lastUpdated state from context
+  useEffect(() => {
+    // Only update if the value has actually changed and is not null
+    if (contextLastUpdated && contextLastUpdated !== prevContextLastUpdatedRef.current) {
+      prevContextLastUpdatedRef.current = contextLastUpdated;
+      setLastUpdated(new Date(contextLastUpdated));
+    }
+  }, [contextLastUpdated]);
+  
+  // Load user preferences from localStorage on mount
+  useEffect(() => {
+    try {
+      // Load followed matches
+      const savedFollowed = localStorage.getItem('followed-matches');
+      if (savedFollowed) {
+        setFollowedMatchIds(JSON.parse(savedFollowed));
+      }
+      
+      // Load favorite teams
+      const savedTeams = localStorage.getItem('favorite-teams');
+      if (savedTeams) {
+        setFavoriteTeams(JSON.parse(savedTeams));
+      }
+      
+      // Load favorite leagues
+      const savedLeagues = localStorage.getItem('favorite-leagues');
+      if (savedLeagues) {
+        setFavoriteLeagues(JSON.parse(savedLeagues));
+      }
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Error loading user preferences:`, error);
+    }
+  }, []);
+  
+  // Save followed matches to localStorage when changed
+  useEffect(() => {
+    if (followedMatchIds.length > 0) {
+      try {
+        localStorage.setItem('followed-matches', JSON.stringify(followedMatchIds));
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Error saving followed matches:`, error);
+      }
+    }
+  }, [followedMatchIds]);
+  
+  // For debugging purposes, log data availability
+  useEffect(() => {
+    console.log(`[${CURRENT_TIMESTAMP}] Dashboard data state:`, {
+      liveMatches: liveMatches?.length || 0,
+      upcomingMatches: upcomingMatches?.length || 0,
+      todayMatches: todayMatches?.length || 0,
+      finishedMatches: finishedMatches?.length || 0,
+      isLoading: isLoadingMatches,
+      componentLoading: loading,
+      error: matchError
+    });
+  }, [liveMatches, upcomingMatches, todayMatches, finishedMatches, isLoadingMatches, loading, matchError]);
   
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -120,7 +199,7 @@ export default function DashboardTab() {
           <div className="flex ml-auto items-center gap-2">
             <span className="bg-red-500/20 text-red-400 px-2 py-1 text-xs rounded-full flex items-center gap-1">
               <FiActivity size={12} />
-              <span>{liveMatches.length} live</span>
+              <span>{liveMatches?.length || 0} live</span>
             </span>
             <button 
               onClick={handleRefresh}
@@ -149,7 +228,7 @@ export default function DashboardTab() {
               </div>
             </div>
           </div>
-        ) : liveMatches.length > 0 ? (
+        ) : liveMatches && liveMatches.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {liveMatches.map(match => (
               <div 
@@ -359,7 +438,7 @@ export default function DashboardTab() {
             <h2 className="text-xl font-bold text-white">Upcoming Matches</h2>
           </div>
           <span className="bg-indigo-500/20 text-indigo-400 px-3 py-1 text-xs rounded-full">
-            {upcomingMatches.length} matches
+            {upcomingMatches?.length || 0} matches
           </span>
         </div>
         
@@ -372,7 +451,7 @@ export default function DashboardTab() {
               </div>
             </div>
           </div>
-        ) : upcomingMatches.length > 0 ? (
+        ) : upcomingMatches && upcomingMatches.length > 0 ? (
           <div className="space-y-3 sm:space-y-4">
             {upcomingMatches.slice(0, 3).map(match => (
               <div 
@@ -512,7 +591,7 @@ export default function DashboardTab() {
             <h2 className="text-xl font-bold text-white">Recent Results</h2>
           </div>
           <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 text-xs rounded-full">
-            {finishedMatches.length} matches
+            {finishedMatches?.length || 0} matches
           </span>
         </div>
         
@@ -525,7 +604,7 @@ export default function DashboardTab() {
               </div>
             </div>
           </div>
-        ) : finishedMatches.length > 0 ? (
+        ) : finishedMatches && finishedMatches.length > 0 ? (
           <div className="space-y-3 sm:space-y-4">
             {finishedMatches.slice(0, 2).map(match => (
               <div 
@@ -692,7 +771,7 @@ export default function DashboardTab() {
             </div>
             <div>
               <p className="text-sm sm:text-base text-slate-300">Matches</p>
-              <p className="text-xl sm:text-3xl font-bold text-white">{upcomingMatches.length + liveMatches.length}</p>
+              <p className="text-xl sm:text-3xl font-bold text-white">{(upcomingMatches?.length || 0) + (liveMatches?.length || 0)}</p>
             </div>
           </div>
         </div>
@@ -707,7 +786,7 @@ export default function DashboardTab() {
             </div>
             <div>
               <p className="text-sm sm:text-base text-slate-300">Live</p>
-              <p className="text-xl sm:text-3xl font-bold text-white">{liveMatches.length}</p>
+              <p className="text-xl sm:text-3xl font-bold text-white">{liveMatches?.length || 0}</p>
             </div>
           </div>
         </div>

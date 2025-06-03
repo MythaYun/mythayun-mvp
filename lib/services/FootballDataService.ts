@@ -1,150 +1,250 @@
-// Football-Data API service for real API integration
-import { FootballMatch } from './MatchesService';
+// Football Data API service with enhanced features for football fans
 
-// Constants
-const API_BASE_URL = 'https://api.football-data.org/v4';
-const API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY || '';
+// Constants for logging
+const CURRENT_TIMESTAMP = "2025-05-30 12:29:20"; 
+const CURRENT_USER = "Sdiabate1337";
 
 // Cache to reduce API calls and improve performance
 const responseCache: { [key: string]: { data: any, timestamp: number } } = {};
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000; // Cache duration: 5 minutes
 
-// Validation and error handling
-interface ApiError {
-  message: string;
-  code?: number;
+// Type definitions for API responses
+export interface MatchesResponse {
+  matches: any[];
+  count: number;
+  competition?: any;
+  filters?: any;
 }
 
-// Football-Data API Service
+export interface StandingsResponse {
+  standings: any[];
+  competition: any;
+  season: any;
+  filters?: any;
+}
+
+export interface TeamsResponse {
+  teams: any[];
+  count: number;
+  competition?: any;
+  season?: any;
+  filters?: any;
+}
+
+export interface PlayerStatsResponse {
+  players: any[];
+  count: number;
+}
+
+export interface TopScorersResponse {
+  scorers: any[];
+}
+
+export interface League {
+  id: string;
+  name: string;
+  code: string;
+  emblem: string;
+  country: string;
+  currentSeason: {
+    startDate: string;
+    endDate: string;
+  };
+}
+
+export interface FootballMatch {
+  id: string;
+  date: string;
+  time: string;
+  status: 'upcoming' | 'live' | 'finished';
+  homeTeam: {
+    id: string;
+    name: string;
+    logo: string;
+  };
+  awayTeam: {
+    id: string;
+    name: string;
+    logo: string;
+  };
+  score?: {
+    home: number | null;
+    away: number | null;
+  };
+  league: {
+    id: string;
+    name: string;
+    logo: string;
+    round: string;
+  };
+  venue: string;
+}
+
 class FootballDataService {
-  private headers: HeadersInit;
-  
-  constructor() {
-    this.headers = {
-      'X-Auth-Token': API_KEY,
-      'Content-Type': 'application/json',
-    };
-  }
+  private readonly API_PROXY_ROUTE = '/api/football';
 
   /**
-   * Generic fetch method with caching and error handling
+   * Fetch data from the API using proxy
    */
-  private async fetchFromApi<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+  public async fetchFromApi<T>(endpoint: string, params: Record<string, string | number | boolean> = {}): Promise<T> {
     try {
-      // Build URL with parameters
-      const queryString = new URLSearchParams(params).toString();
-      const url = `${API_BASE_URL}${endpoint}${queryString ? `?${queryString}` : ''}`;
-      
-      // Check cache first
-      const cacheKey = url;
+      // Build query string
+      const queryParams = new URLSearchParams(
+        Object.entries(params)
+          .filter(([_, value]) => value !== undefined && value !== null)
+          .reduce<Record<string, string>>((acc, [key, value]) => {
+            acc[key] = String(value);
+            return acc;
+          }, {})
+      ).toString();
+
+      // Generate cache key
+      const cacheKey = `${endpoint}${queryParams ? `?${queryParams}` : ''}`;
       const now = Date.now();
-      
+
+      // Check cache
       if (responseCache[cacheKey] && (now - responseCache[cacheKey].timestamp) < CACHE_DURATION) {
-        console.log(`[Cache] Using cached data for: ${endpoint}`);
+        console.log(`[${CURRENT_TIMESTAMP}] [Cache] Using cached data for: ${endpoint}`);
         return responseCache[cacheKey].data as T;
       }
-      
-      // If not in cache or expired, make real API call
-      console.log(`[API] Fetching: ${endpoint}`);
-      
-      if (!API_KEY) {
-        throw new Error('API key not configured. Please set NEXT_PUBLIC_FOOTBALL_DATA_API_KEY in your environment.');
-      }
-      
-      const response = await fetch(url, { headers: this.headers });
-      
-      // Handle HTTP errors
+
+      // Log request
+      console.log(`[${CURRENT_TIMESTAMP}] Football-Data API Request by ${CURRENT_USER}: GET ${endpoint}${queryParams ? `?${queryParams}` : ''}`);
+
+      const proxyUrl = `${this.API_PROXY_ROUTE}?endpoint=${encodeURIComponent(endpoint)}${queryParams ? `&${queryParams}` : ''}`;
+      const response = await fetch(proxyUrl, { method: 'GET', headers: { 'Accept': 'application/json' } });
+
+      // Handle error responses
       if (!response.ok) {
-        const errorData = await response.json();
-        
-        // Check rate limiting
+        const errorDetails = await response.json().catch(() => ({ message: response.statusText }));
         if (response.status === 429) {
+          console.error(`[${CURRENT_TIMESTAMP}] API rate limit exceeded for ${CURRENT_USER}`);
           throw new Error('API rate limit exceeded. Please try again later.');
         }
-        
-        throw new Error(errorData.message || `API Error: ${response.statusText}`);
+        console.error(`[${CURRENT_TIMESTAMP}] Football-Data API Error (${response.status}):`, errorDetails);
+        throw new Error(errorDetails.message || `API error (${response.status}): ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
-      // Cache the result
-      responseCache[cacheKey] = {
-        data,
-        timestamp: now
-      };
-      
+      responseCache[cacheKey] = { data, timestamp: now }; // Cache the response
       return data as T;
-    } catch (error) {
-      console.error('Football-Data API error:', error);
-      throw error;
+    } catch (error: any) {
+      console.error(`[${CURRENT_TIMESTAMP}] Football-Data API Request Error:`, error);
+      throw new Error(error.message || 'An unknown error occurred while fetching data from the API.');
     }
   }
 
   /**
-   * Get matches for a specific date range
+   * Format matches into FootballMatch interface
    */
-  async getMatches(options: {
-    dateFrom?: string;
-    dateTo?: string;
-    competitions?: string[];
-    status?: 'SCHEDULED' | 'LIVE' | 'IN_PLAY' | 'PAUSED' | 'FINISHED' | 'POSTPONED' | 'SUSPENDED' | 'CANCELLED';
-  }) {
-    const params: Record<string, string> = {};
-    
-    if (options.dateFrom) params.dateFrom = options.dateFrom;
-    if (options.dateTo) params.dateTo = options.dateTo;
-    if (options.status) params.status = options.status;
-    if (options.competitions?.length) params.competitions = options.competitions.join(',');
-    
-    return this.fetchFromApi<any>('/matches', params);
+  public formatMatches(apiMatches: any[]): FootballMatch[] {
+    if (!apiMatches || !Array.isArray(apiMatches)) {
+      return [];
+    }
+
+    return apiMatches.map(match => {
+      const status: 'upcoming' | 'live' | 'finished' = 
+        match.status === 'FINISHED' ? 'finished' : 
+        ['LIVE', 'IN_PLAY', 'PAUSED'].includes(match.status) ? 'live' : 'upcoming';
+
+      const scoreObj = status !== 'upcoming' ? {
+        home: match.score?.fullTime?.home ?? null,
+        away: match.score?.fullTime?.away ?? null
+      } : undefined;
+
+      const utcDate = new Date(match.utcDate);
+      const date = utcDate.toISOString().split('T')[0];
+      const time = utcDate.toTimeString().substring(0, 5);
+
+      return {
+        id: String(match.id),
+        date,
+        time,
+        status,
+        homeTeam: {
+          id: String(match.homeTeam?.id),
+          name: match.homeTeam?.name || 'Unknown',
+          logo: match.homeTeam?.crest || ''
+        },
+        awayTeam: {
+          id: String(match.awayTeam?.id),
+          name: match.awayTeam?.name || 'Unknown',
+          logo: match.awayTeam?.crest || ''
+        },
+        score: scoreObj,
+        league: {
+          id: String(match.competition?.id),
+          name: match.competition?.name || 'Unknown',
+          logo: match.competition?.emblem || '',
+          round: match.matchday ? `Matchday ${match.matchday}` : ''
+        },
+        venue: match.venue || 'Unknown'
+      };
+    });
   }
-  
-  /**
-   * Get live matches
-   */
-  async getLiveMatches() {
-    return this.fetchFromApi<any>('/matches', { status: 'LIVE,IN_PLAY,PAUSED' });
-  }
-  
-  /**
-   * Get matches for a specific league/competition
-   */
-  async getCompetitionMatches(competitionId: string, options: {
-    dateFrom?: string;
-    dateTo?: string;
-    status?: string;
-  } = {}) {
-    const params: Record<string, string> = {};
-    
-    if (options.dateFrom) params.dateFrom = options.dateFrom;
-    if (options.dateTo) params.dateTo = options.dateTo;
-    if (options.status) params.status = options.status;
-    
-    return this.fetchFromApi<any>(`/competitions/${competitionId}/matches`, params);
-  }
-  
+
   /**
    * Get competitions list
    */
-  async getCompetitions() {
-    return this.fetchFromApi<any>('/competitions');
+  async getCompetitions(): Promise<League[]> {
+    return this.fetchFromApi<{ competitions: League[] }>('/competitions').then(res => res.competitions);
   }
-  
+
   /**
-   * Get specific match details
+   * Get matches for a specific league or date range
    */
-  async getMatch(matchId: string) {
-    return this.fetchFromApi<any>(`/matches/${matchId}`);
+  async getMatchesInDateRange(fromDate: string, toDate: string): Promise<FootballMatch[]> {
+    const response = await this.fetchFromApi<MatchesResponse>('/matches', { dateFrom: fromDate, dateTo: toDate });
+    return this.formatMatches(response.matches);
   }
-  
+
   /**
-   * Clear the API response cache
+   * Get upcoming matches within a specific number of days
+   */
+  async getUpcomingMatches(days: number = 7): Promise<{ matches: FootballMatch[], total: number }> {
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(today.getDate() + days);
+
+    const fromDate = today.toISOString().split('T')[0];
+    const toDate = endDate.toISOString().split('T')[0];
+
+    const response = await this.fetchFromApi<MatchesResponse>('/matches', { dateFrom: fromDate, dateTo: toDate, status: 'SCHEDULED' });
+    const formattedMatches = this.formatMatches(response.matches);
+    return { matches: formattedMatches, total: response.count || formattedMatches.length };
+  }
+
+  /**
+   * Get live matches
+   */
+  async getLiveMatches(): Promise<FootballMatch[]> {
+    const response = await this.fetchFromApi<MatchesResponse>('/matches', { status: 'LIVE' });
+    return this.formatMatches(response.matches);
+  }
+
+  /**
+   * Get standings for a league
+   */
+  async getLeagueStandings(leagueId: string): Promise<StandingsResponse> {
+    return this.fetchFromApi<StandingsResponse>(`/competitions/${leagueId}/standings`);
+  }
+
+  /**
+   * Get top scorers for a league
+   */
+  async getTopScorers(leagueId: string): Promise<TopScorersResponse> {
+    return this.fetchFromApi<TopScorersResponse>(`/competitions/${leagueId}/scorers`);
+  }
+
+  /**
+   * Clear cached responses
    */
   clearCache() {
     Object.keys(responseCache).forEach(key => delete responseCache[key]);
-    console.log('API cache cleared');
+    console.log(`[${CURRENT_TIMESTAMP}] Cache cleared by ${CURRENT_USER}`);
   }
 }
 
-// Singleton instance
+// Export singleton instance
 export const footballDataService = new FootballDataService();
+export default footballDataService;

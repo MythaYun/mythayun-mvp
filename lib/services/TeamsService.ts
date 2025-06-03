@@ -1,434 +1,236 @@
-import footballDataApiClient from '../api/footballApiClient';
-import cacheService, { createCacheKey } from './cacheService';
+import apiFootballClient from '../api/footballApiClient';
+import CacheService from './cacheService';
 
-// Updated constants with the latest values
-const CURRENT_TIMESTAMP = "2025-05-20 16:09:19"; 
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-31 12:27:03";
 const CURRENT_USER = "Sdiabate1337";
 
-// Types for football-data.org team data
-export interface FootballDataTeam {
-  id: number;
+// Team interface
+export interface Team {
+  id: string;
   name: string;
-  shortName: string;
-  tla: string;
-  crest: string;
-  address: string;
-  website: string;
+  code?: string;
+  country: string;
   founded: number;
-  clubColors: string;
-  venue: string;
-  lastUpdated: string;
-  runningCompetitions?: Array<{
-    id: number;
+  logo: string;
+  venue: {
     name: string;
-    code: string;
-    type: string;
-    emblem: string;
-  }>;
-  coach?: {
-    id: number;
-    name: string;
-    dateOfBirth?: string;
-    nationality?: string;
-    contract?: {
-      start: string;
-      until: string;
-    };
-  };
-  squad?: FootballDataPlayer[];
-  area: {
-    id: number;
-    name: string;
-    code: string;
-    flag: string;
+    address?: string;
+    city?: string;
+    capacity?: number;
+    surface?: string;
+    image?: string;
   };
 }
 
-// Type definition for player data from football-data.org
-export interface FootballDataPlayer {
-  id: number;
-  name: string;
-  position: string;
-  dateOfBirth: string;
-  nationality: string;
-  shirtNumber?: number;
-  currentTeam?: {
-    id: number;
-    name: string;
-    crest: string;
-  };
+// Team stats interface
+export interface TeamStats {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  form: string[];
+  cleanSheets: number;
+  failedToScore: number;
 }
 
-// Processed player data for our app
-export interface FootballPlayer {
+// Player interface
+export interface Player {
   id: string;
   name: string;
   age: number;
-  number: number | null;
+  nationality: string;
   position: string;
   photo: string;
-  teamId: string;
-}
-
-export interface TeamsResponse {
-  count: number;
-  filters: Record<string, any>;
-  teams: FootballDataTeam[];
-}
-
-// Our app's team format
-export interface FootballTeam {
-  id: string;
-  name: string;
-  logo: string;
-  country: string;
-  founded: number;
-  venue: {
-    name: string;
-    capacity: number;
-    city: string;
-    image: string;
+  stats?: {
+    appearances: number;
+    goals: number;
+    assists: number;
+    yellowCards: number;
+    redCards: number;
+    minutesPlayed: number;
   };
-  isFollowed: boolean;
 }
 
-// Interface for team list response
-export interface TeamListResponse {
-  teams: FootballTeam[];
-  total: number;
-}
-
-// Interface for squad response
-export interface SquadResponse {
-  players: FootballPlayer[];
-  team: {
-    id: string;
-    name: string;
-    logo: string;
-  };
-  total: number;
-}
-
-// Calculate age from date of birth
-const getAge = (dateOfBirth: string): number => {
-  const birthDate = new Date(dateOfBirth);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
+// Team service implementation for API-Football
+export default class TeamService {
+  /**
+   * Convert API-Football team format to our Team format
+   */
+  private static convertToTeam(apiTeam: any): Team {
+    return {
+      id: apiTeam.team.id.toString(),
+      name: apiTeam.team.name,
+      code: apiTeam.team.code,
+      country: apiTeam.team.country,
+      founded: apiTeam.team.founded,
+      logo: apiTeam.team.logo,
+      venue: {
+        name: apiTeam.venue?.name || 'Unknown',
+        address: apiTeam.venue?.address,
+        city: apiTeam.venue?.city,
+        capacity: apiTeam.venue?.capacity,
+        surface: apiTeam.venue?.surface,
+        image: apiTeam.venue?.image
+      }
+    };
   }
-  return age;
-};
 
-// Map API team to our format
-const mapApiTeamToAppTeam = (apiTeam: FootballDataTeam, favoriteTeams: string[] = []): FootballTeam => {
-  console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} mapping team data: ${apiTeam.id}`);
-  
-  return {
-    id: apiTeam.id.toString(),
-    name: apiTeam.name,
-    logo: apiTeam.crest || '/placeholder-team.png',
-    country: apiTeam.area?.name || 'Unknown',
-    founded: apiTeam.founded || 0,
-    venue: {
-      name: apiTeam.venue || 'Unknown',
-      capacity: 0, // football-data.org doesn't provide capacity directly
-      city: apiTeam.address || 'Unknown',
-      image: '/placeholder-stadium.jpg'
-    },
-    isFollowed: favoriteTeams.includes(apiTeam.id.toString())
-  };
-};
-
-// Map API player to our format
-const mapApiPlayerToAppPlayer = (player: FootballDataPlayer, teamId: string): FootballPlayer => {
-  return {
-    id: player.id.toString(),
-    name: player.name,
-    age: getAge(player.dateOfBirth),
-    number: player.shirtNumber || null,
-    position: player.position,
-    photo: '/placeholder-player.png', // football-data.org doesn't provide player photos
-    teamId: teamId
-  };
-};
-
-// Update teams with user favorites
-const updateTeamsWithUserFavorites = (teams: FootballTeam[], favoriteTeams: string[]): FootballTeam[] => {
-  if (!favoriteTeams.length) return teams;
-  
-  return teams.map((team: FootballTeam) => ({
-    ...team,
-    isFollowed: favoriteTeams.includes(team.id)
-  }));
-};
-
-// Team service functions
-const TeamsService = {
-  // Get a single team by ID
-  getTeam: async (teamId: string, favoriteTeams: string[] = []): Promise<FootballTeam> => {
-    try {
-      // Use standardized cache key
-      const cacheKey = createCacheKey.team(teamId);
-      const cachedData = cacheService.get<FootballTeam>(cacheKey);
-      
-      if (cachedData) {
-        // Update with latest user preferences
-        return {
-          ...cachedData,
-          isFollowed: favoriteTeams.includes(cachedData.id)
-        };
-      }
-      
-      const response = await footballDataApiClient.get(`/teams/${encodeURIComponent(teamId)}`);
-      
-      if (!response.data) {
-        throw new Error(`Team with ID ${teamId} not found`);
-      }
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched team: ${teamId}`);
-      
-      const team = mapApiTeamToAppTeam(response.data, favoriteTeams);
-      
-      // Cache for 1 hour with category label - team data doesn't change often
-      cacheService.set(cacheKey, team, 60, 'team');
-      return team;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching team ${teamId} for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Search for teams
-  searchTeams: async (query: string, favoriteTeams: string[] = []): Promise<TeamListResponse> => {
-    try {
-      // Input validation
-      if (!query || query.length < 3) {
-        return { teams: [], total: 0 };
-      }
-      
-      // Use standardized cache key
-      const cacheKey = createCacheKey.search('teams', query);
-      const cachedData = cacheService.get<TeamListResponse>(cacheKey);
-      
-      if (cachedData) {
-        // Update with latest user preferences
-        return {
-          ...cachedData,
-          teams: updateTeamsWithUserFavorites(cachedData.teams, favoriteTeams)
-        };
-      }
-      
-      // football-data.org doesn't have a direct search endpoint
-      // We'll get a list of teams from top competitions and filter them client-side
-      const response = await footballDataApiClient.get('/teams');
-      
-      // Filter teams by name or location (case-insensitive)
-      const normalizedQuery = query.toLowerCase();
-      const filteredTeams = response.data.teams.filter((team: FootballDataTeam) => {
-        return team.name.toLowerCase().includes(normalizedQuery) || 
-               (team.shortName && team.shortName.toLowerCase().includes(normalizedQuery)) ||
-               (team.area && team.area.name.toLowerCase().includes(normalizedQuery));
-      });
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} searched for teams: "${query}" - ${filteredTeams.length} results`);
-      
-      const result: TeamListResponse = {
-        teams: filteredTeams.map((team: FootballDataTeam) => mapApiTeamToAppTeam(team, favoriteTeams)),
-        total: filteredTeams.length
-      };
-      
-      // Cache for 30 minutes with category label
-      cacheService.set(cacheKey, result, 30, 'search');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error searching teams for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Get a team's squad
-  getTeamSquad: async (teamId: string): Promise<SquadResponse> => {
-    try {
-      // Use standardized cache key
-      const cacheKey = createCacheKey.teamSquad(teamId);
-      const cachedData = cacheService.get<SquadResponse>(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-      
-      // football-data.org includes squad with team details
-      const response = await footballDataApiClient.get(`/teams/${encodeURIComponent(teamId)}`);
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched squad for team: ${teamId}`);
-      
-      // Process squad data
-      const teamData = response.data as FootballDataTeam;
-      const squad = teamData.squad || [];
-      
-      const result: SquadResponse = {
-        players: squad.map((player: FootballDataPlayer) => mapApiPlayerToAppPlayer(player, teamId)),
-        team: {
-          id: teamData.id.toString(),
-          name: teamData.name,
-          logo: teamData.crest || '/placeholder-team.png'
-        },
-        total: squad.length
-      };
-      
-      // Cache for 24 hours with category label - squad data changes infrequently
-      cacheService.set(cacheKey, result, 60 * 24, 'squad');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching team squad for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Get teams from a specific league
-  getLeagueTeams: async (leagueId: string, season: number, favoriteTeams: string[] = []): Promise<TeamListResponse> => {
-    try {
-      // Use standardized cache key
-      const cacheKey = createCacheKey.leagueTeams(leagueId, season);
-      const cachedData = cacheService.get<TeamListResponse>(cacheKey);
-      
-      if (cachedData) {
-        // Update with latest user preferences
-        return {
-          ...cachedData,
-          teams: updateTeamsWithUserFavorites(cachedData.teams, favoriteTeams)
-        };
-      }
-      
-      // football-data.org uses 'competitions' instead of 'league'
-      const response = await footballDataApiClient.get(
-        `/competitions/${encodeURIComponent(leagueId)}/teams?season=${season}`
-      );
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched teams for league: ${leagueId} season: ${season}`);
-      
-      const result: TeamListResponse = {
-        teams: response.data.teams.map((team: FootballDataTeam) => mapApiTeamToAppTeam(team, favoriteTeams)),
-        total: response.data.count
-      };
-      
-      // Cache for 24 hours with category label - team affiliations don't change often
-      cacheService.set(cacheKey, result, 60 * 24, 'league-teams');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching league teams for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Get top-scoring teams in a league
-  getTopScoringTeams: async (leagueId: string, season: number): Promise<any> => {
-    try {
-      // Use standardized cache key
-      const cacheKey = createCacheKey.search(`league-${leagueId}-stats`, `top-scoring-${season}`);
-      const cachedData = cacheService.get(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-      
-      // football-data.org uses standings for team statistics
-      const response = await footballDataApiClient.get(
-        `/competitions/${encodeURIComponent(leagueId)}/standings?season=${season}`
-      );
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched standings for league: ${leagueId}`);
-      
-      // Get the team standings and sort by goals scored
-      const standings = response.data.standings[0]?.table || [];
-      const sortedByGoals = [...standings].sort((a: any, b: any) => b.goalsFor - a.goalsFor);
-      
-      const result = {
-        stats: sortedByGoals.slice(0, 10).map((entry: any) => ({
-          team: {
-            id: entry.team.id,
-            name: entry.team.name,
-            logo: entry.team.crest
-          },
-          goalsFor: entry.goalsFor,
-          goalsAgainst: entry.goalsAgainst,
-          goalDifference: entry.goalDifference,
-          position: entry.position
-        })),
-        timestamp: CURRENT_TIMESTAMP
-      };
-      
-      // Cache for 12 hours with category label - stats update after matches
-      cacheService.set(cacheKey, result, 60 * 12, 'statistics');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching team statistics for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Get team standings in league
-  getTeamStanding: async (teamId: string, leagueId: string, season: number): Promise<any> => {
-    try {
-      // Use standardized cache key
-      const cacheKey = createCacheKey.search(`team-${teamId}-standing`, `${leagueId}-${season}`);
-      const cachedData = cacheService.get(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-      
-      // Get standings from football-data.org
-      const response = await footballDataApiClient.get(
-        `/competitions/${encodeURIComponent(leagueId)}/standings?season=${season}`
-      );
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched standings for team ${teamId} in league ${leagueId}`);
-      
-      // Find the team in the standings
-      const standings = response.data.standings[0]?.table || [];
-      const teamStanding = standings.find((entry: any) => entry.team.id.toString() === teamId);
-      
-      const result = {
-        standing: teamStanding || null,
-        totalTeams: standings.length,
-        timestamp: CURRENT_TIMESTAMP
-      };
-      
-      // Cache for 6 hours with category label - standings update after matches
-      cacheService.set(cacheKey, result, 60 * 6, 'standings');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching team standing for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Clear team cache
-  clearTeamCache: (teamId: string): void => {
-    // Clear all caches related to this team
-    const teamKey = createCacheKey.team(teamId);
-    const squadKey = createCacheKey.teamSquad(teamId);
+/**
+   * Get team by ID
+   */
+  static async getTeam(teamId: string): Promise<Team | null> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching team: ${teamId}`);
     
-    cacheService.remove(teamKey);
-    cacheService.remove(squadKey);
-    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared cache for team ${teamId}`);
-  },
-  
-  // Clear all teams cache
-  clearAllTeamsCache: (): void => {
-    cacheService.clearByCategory('team');
-    cacheService.clearByCategory('squad');
-    cacheService.clearByCategory('league-teams');
-    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared all teams cache`);
-  },
-  
-  // Get cache statistics
-  getCacheStats: (): { size: number, categories: Record<string, number> } => {
-    return cacheService.getStats();
+    const cacheKey = `team:${teamId}`;
+    
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const { data } = await apiFootballClient.getTeams({ id: parseInt(teamId) });
+        
+        if (!data.response || data.response.length === 0) {
+          console.log(`[${CURRENT_TIMESTAMP}] Team not found: ${teamId}`);
+          return null;
+        }
+        
+        return this.convertToTeam(data.response[0]);
+      },
+      'LONG' // Team data rarely changes
+    );
   }
-};
 
-export default TeamsService;
+  /**
+   * Search for teams by name
+   */
+  static async searchTeams(query: string): Promise<Team[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is searching for teams: ${query}`);
+    
+    const cacheKey = `teamSearch:${query.toLowerCase()}`;
+    
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const { data } = await apiFootballClient.getTeams({ search: query });
+        
+        if (!data.response || !Array.isArray(data.response)) {
+          return [];
+        }
+        
+        return data.response.map(this.convertToTeam);
+      },
+      'MEDIUM'
+    );
+  }
+
+  /**
+   * Get teams in a league
+   */
+  static async getTeamsInLeague(leagueId: string, season: number = 2023): Promise<Team[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching teams for league: ${leagueId}, season: ${season}`);
+    
+    const cacheKey = `teamsInLeague:${leagueId}:${season}`;
+    
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const { data } = await apiFootballClient.getTeams({ 
+          league: parseInt(leagueId), 
+          season 
+        });
+        
+        if (!data.response || !Array.isArray(data.response)) {
+          return [];
+        }
+        
+        return data.response.map(this.convertToTeam);
+      },
+      'DAY' // Team lists only change seasonally
+    );
+  }
+
+
+/**
+   * Get team statistics
+   */
+  static async getTeamStats(teamId: string, leagueId: string, season: number = 2023): Promise<TeamStats | null> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching stats for team ${teamId} in league ${leagueId}`);
+    
+    const cacheKey = `teamStats:${teamId}:${leagueId}:${season}`;
+    
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const { data } = await apiFootballClient.getTeamStatistics({
+          team: parseInt(teamId),
+          league: parseInt(leagueId),
+          season
+        });
+        
+        if (!data.response) {
+          console.log(`[${CURRENT_TIMESTAMP}] No stats found for team ${teamId}`);
+          return null;
+        }
+        
+        const stats = data.response;
+        
+        return {
+          played: stats.fixtures?.played?.total || 0,
+          wins: stats.fixtures?.wins?.total || 0,
+          draws: stats.fixtures?.draws?.total || 0,
+          losses: stats.fixtures?.loses?.total || 0,
+          goalsFor: stats.goals?.for?.total || 0,
+          goalsAgainst: stats.goals?.against?.total || 0,
+          form: stats.form ? stats.form.split('').map((result: string) => result) : [],
+          cleanSheets: stats.clean_sheet?.total || 0,
+          failedToScore: stats.failed_to_score?.total || 0
+        };
+      },
+      'STANDARD' // Updates after matches, so standard cache
+    );
+  }
+
+
+  /**
+   * Get team's players
+   */
+  static async getTeamPlayers(teamId: string, season: number = 2023): Promise<Player[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching players for team ${teamId}`);
+    
+    const cacheKey = `teamPlayers:${teamId}:${season}`;
+    
+    return CacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const { data } = await apiFootballClient.getPlayers({
+          team: parseInt(teamId),
+          season
+        });
+        
+        if (!data.response || !Array.isArray(data.response)) {
+          return [];
+        }
+        
+        return data.response.map((player: any) => ({
+          id: player.player.id.toString(),
+          name: player.player.name,
+          age: player.player.age,
+          nationality: player.player.nationality,
+          position: player.statistics[0]?.games?.position || 'Unknown',
+          photo: player.player.photo,
+          stats: {
+            appearances: player.statistics[0]?.games?.appearences || 0,
+            goals: player.statistics[0]?.goals?.total || 0,
+            assists: player.statistics[0]?.goals?.assists || 0,
+            yellowCards: player.statistics[0]?.cards?.yellow || 0,
+            redCards: player.statistics[0]?.cards?.red || 0,
+            minutesPlayed: player.statistics[0]?.games?.minutes || 0
+          }
+        }));
+      },
+      'DAY' // Roster changes are infrequent
+    );
+  }
+}

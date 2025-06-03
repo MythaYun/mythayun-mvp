@@ -1,228 +1,117 @@
-/**
- * CacheService for API-Football Integration
- * 
- * Manages caching of API responses to reduce API calls and respect rate limits.
- * Implements expiry times for different types of data.
- */
-
-// Constants
-const CURRENT_TIMESTAMP = "2025-05-19 18:28:09";
+// Current system information
+const CURRENT_TIMESTAMP = "2025-06-01 19:45:56";
 const CURRENT_USER = "Sdiabate1337";
 
-interface CacheItem<T> {
-  data: T;
-  expiry: number;
-  timestamp: string;
-  user: string;
-  key: string;
-}
-
+// Enhanced Cache System with additional features
 class CacheService {
-  private cache: Map<string, CacheItem<any>>;
-  private readonly MAX_CACHE_SIZE = 500; // Prevent excessive memory usage
+  private static cache: Record<string, { data: any; timestamp: number; ttl: number }> = {};
   
-  constructor() {
-    this.cache = new Map();
-    console.log(`[${CURRENT_TIMESTAMP}] CacheService initialized for user ${CURRENT_USER}`);
+  // Default TTLs (in minutes)
+  public static TTL = {
+    SHORT: 5 * 60 * 1000,        // 5 minutes (live/frequently changing data)
+    STANDARD: 30 * 60 * 1000,    // 30 minutes (most data)
+    MEDIUM: 120 * 60 * 1000,     // 2 hours (semi-static data)
+    LONG: 720 * 60 * 1000,       // 12 hours (static data)
+    DAY: 1440 * 60 * 1000        // 24 hours (very static data)
+  };
+  
+  // Check if we're in match hours (weekends or evenings on weekdays)
+  static isMatchHours(): boolean {
+    const now = new Date();
+    const hour = now.getUTCHours();
+    const day = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    
+    // Weekend or weekday evening
+    return (day === 0 || day === 6) || (hour >= 17 && hour <= 23);
   }
   
-  /**
-   * Set an item in the cache with an expiry time
-   * @param key Unique cache key
-   * @param data Data to cache
-   * @param expiryMinutes Minutes until item expires (defaults to 5)
-   * @param category Optional category for logging/grouping
-   */
-  set<T>(key: string, data: T, expiryMinutes: number = 5, category?: string): void {
-    // Check if we need to clear space
-    if (this.cache.size >= this.MAX_CACHE_SIZE) {
-      this.clearOldest();
+  // Get from cache or set if not exists
+  static async getOrSet<T>(
+    key: string, 
+    fetchFn: () => Promise<T>, 
+    ttlType: keyof typeof CacheService.TTL | number = 'STANDARD', 
+    adjustForMatchHours: boolean = true
+  ): Promise<T> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Cache check for: ${key}`);
+    
+    // Determine TTL in milliseconds
+    let ttlMs: number;
+    if (typeof ttlType === 'string') {
+      ttlMs = this.TTL[ttlType];
+      
+      // During match hours, reduce cache time for dynamic data
+      if (adjustForMatchHours && this.isMatchHours() && 
+          (ttlType === 'SHORT' || ttlType === 'STANDARD')) {
+        ttlMs = Math.max(60000, Math.floor(ttlMs / 3)); // Reduce to 1/3, min 1 minute
+      }
+    } else {
+      // Direct minutes value
+      ttlMs = ttlType * 60 * 1000;
     }
     
-    const now = new Date(CURRENT_TIMESTAMP);
-    const expiry = now.getTime() + (expiryMinutes * 60 * 1000);
+    // Check if data exists in cache and is still valid
+    const cached = this.cache[key];
+    if (cached) {
+      const now = Date.now();
+      if (now - cached.timestamp < cached.ttl) {
+        console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Cache hit for: ${key}`);
+        return cached.data;
+      }
+      // Cache expired
+      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Cache expired for: ${key}`);
+    }
     
-    this.cache.set(key, {
-      data,
-      expiry,
-      timestamp: CURRENT_TIMESTAMP,
-      user: CURRENT_USER,
-      key
+    // Fetch fresh data
+    try {
+      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Fetching fresh data for: ${key}`);
+      const data = await fetchFn();
+      
+      // Store in cache
+      this.cache[key] = {
+        data,
+        timestamp: Date.now(),
+        ttl: ttlMs
+      };
+      
+      // Set cleanup timeout
+      setTimeout(() => {
+        delete this.cache[key];
+      }, ttlMs);
+      
+      return data;
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Error fetching data for: ${key}`, error);
+      // If we have stale data, return it during errors
+      if (cached) {
+        console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Returning stale data during error for: ${key}`);
+        return cached.data;
+      }
+      throw error;
+    }
+  }
+  
+  // Clear specific key or all cache
+  static clear(key?: string): void {
+    if (key) {
+      delete this.cache[key];
+      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Cleared cache for: ${key}`);
+    } else {
+      this.cache = {};
+      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Cleared all cache`);
+    }
+  }
+  
+  // Invalidate cache for pattern (useful for related data)
+  static invalidatePattern(pattern: string): void {
+    const keys = Object.keys(this.cache);
+    const matchingKeys = keys.filter(key => key.includes(pattern));
+    
+    matchingKeys.forEach(key => {
+      delete this.cache[key];
     });
     
-    const categoryStr = category ? `[${category}] ` : '';
-    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cached ${categoryStr}data for key: ${key}, expires in ${expiryMinutes} minutes`);
-  }
-  
-  /**
-   * Get an item from the cache if it exists and hasn't expired
-   * @param key Cache key to retrieve
-   * @returns Cached data or null if not found or expired
-   */
-  get<T>(key: string): T | null {
-    const item = this.cache.get(key);
-    const now = new Date(CURRENT_TIMESTAMP).getTime();
-    
-    // Return null if item doesn't exist
-    if (!item) {
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cache miss for key: ${key}`);
-      return null;
-    }
-    
-    // Return null if item has expired and remove it
-    if (now > item.expiry) {
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cache expired for key: ${key} (set ${this.getTimeAgo(item.timestamp)})`);
-      this.cache.delete(key);
-      return null;
-    }
-    
-    // Calculate remaining validity in minutes
-    const remainingMinutes = Math.ceil((item.expiry - now) / (60 * 1000));
-    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cache hit for key: ${key} (valid for ${remainingMinutes} more minutes)`);
-    
-    return item.data as T;
-  }
-  
-  /**
-   * Remove a specific item from the cache
-   * @param key Cache key to remove
-   */
-  remove(key: string): void {
-    if (this.cache.has(key)) {
-      this.cache.delete(key);
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} removed cache for key: ${key}`);
-    }
-  }
-  
-  /**
-   * Clear all items from the cache
-   */
-  clear(): void {
-    const count = this.cache.size;
-    this.cache.clear();
-    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared entire cache (${count} items)`);
-  }
-  
-  /**
-   * Clear items by category prefix
-   * @param categoryPrefix Prefix to match for clearing
-   */
-  clearByCategory(categoryPrefix: string): void {
-    let count = 0;
-    
-    this.cache.forEach((_, key) => {
-      if (key.startsWith(categoryPrefix)) {
-        this.cache.delete(key);
-        count++;
-      }
-    });
-    
-    if (count > 0) {
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared ${count} items from category: ${categoryPrefix}`);
-    }
-  }
-  
-  /**
-   * Clear expired items from the cache
-   * @returns Number of items cleared
-   */
-  clearExpired(): number {
-    const now = new Date(CURRENT_TIMESTAMP).getTime();
-    let count = 0;
-    
-    this.cache.forEach((item, key) => {
-      if (now > item.expiry) {
-        this.cache.delete(key);
-        count++;
-      }
-    });
-    
-    if (count > 0) {
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared ${count} expired items from cache`);
-    }
-    
-    return count;
-  }
-  
-  /**
-   * Get cache statistics
-   */
-  getStats(): { size: number, categories: Record<string, number> } {
-    const categories: Record<string, number> = {};
-    
-    this.cache.forEach((_, key) => {
-      // Extract category from key format "category-restofkey"
-      const category = key.split('-')[0];
-      if (category) {
-        categories[category] = (categories[category] || 0) + 1;
-      }
-    });
-    
-    return {
-      size: this.cache.size,
-      categories
-    };
-  }
-  
-  /**
-   * Internal: Clear oldest items when cache gets too large
-   */
-  private clearOldest(): void {
-    // Convert to array for sorting
-    const items = Array.from(this.cache.entries());
-    
-    // Sort by expiry (oldest first)
-    items.sort((a, b) => a[1].expiry - b[1].expiry);
-    
-    // Remove the oldest 10% or at least 1 item
-    const removeCount = Math.max(1, Math.floor(items.length * 0.1));
-    
-    for (let i = 0; i < removeCount; i++) {
-      if (i < items.length) {
-        this.cache.delete(items[i][0]);
-      }
-    }
-    
-    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared ${removeCount} oldest items to make space in cache`);
-  }
-  
-  /**
-   * Get how long ago a timestamp was (for logging)
-   */
-  private getTimeAgo(timestamp: string): string {
-    const then = new Date(timestamp).getTime();
-    const now = new Date(CURRENT_TIMESTAMP).getTime();
-    const seconds = Math.floor((now - then) / 1000);
-    
-    if (seconds < 60) return `${seconds} seconds ago`;
-    
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes} minutes ago`;
-    
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hours ago`;
-    
-    const days = Math.floor(hours / 24);
-    return `${days} days ago`;
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Invalidated ${matchingKeys.length} cache entries matching: ${pattern}`);
   }
 }
 
-/**
- * Helper functions to standardize cache keys for different data types
- */
-export const createCacheKey = {
-  match: (matchId: string) => `match-${matchId}`,
-  todayMatches: () => `matches-today`,
-  liveMatches: () => `matches-live`,
-  upcomingMatches: (days: number) => `matches-upcoming-${days}`,
-  teamMatches: (teamId: string) => `team-${teamId}-matches`,
-  team: (teamId: string) => `team-${teamId}`,
-  teamSquad: (teamId: string) => `team-${teamId}-squad`,
-  league: (leagueId: string) => `league-${leagueId}`,
-  leagueTeams: (leagueId: string, season: number) => `league-${leagueId}-teams-${season}`,
-  search: (type: string, query: string) => `search-${type}-${query}`
-};
-
-// Create a singleton instance
-const cacheService = new CacheService();
-export default cacheService;
+export default CacheService;

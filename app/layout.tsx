@@ -1,8 +1,7 @@
-
-
 import { Suspense } from 'react';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
 import { ModalProvider } from '@/lib/contexts/ModalContext';
+import { FootballDataProvider } from '@/lib/contexts/FootballDataContext';
 import AuthModals from './components/auth/AuthModals';
 import './globals.css';
 //import { Toaster } from 'react-hot-toast';
@@ -35,14 +34,16 @@ export default function RootLayout({
       <body className="bg-slate-900 text-white">
         <AuthProvider>
           <ModalProvider>
-            {/* Wrap children in Suspense boundary */}
-            <Suspense fallback={<LoadingFallback />}>
-              {children}
-            </Suspense>
+            {/* Add FootballDataProvider around Suspense */}
+            <FootballDataProvider>
+              {/* Wrap children in Suspense boundary */}
+              <Suspense fallback={<LoadingFallback />}>
+                {children}
+              </Suspense>
+            </FootballDataProvider>
             <AuthModals />
           </ModalProvider>
         </AuthProvider>
-
       </body>
     </html>
   );

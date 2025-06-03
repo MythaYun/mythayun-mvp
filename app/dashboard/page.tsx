@@ -9,6 +9,8 @@ import FavoritesTab from './FavoritesTab';
 import EventsTab from './EventsTab';
 import DashboardTab from './DashboardTab';
 
+
+
 import { 
   FiUser, FiLogOut, FiHome, FiSettings, FiCalendar, 
   FiMessageCircle, FiHeart, FiActivity, FiMenu, FiX, 
@@ -128,6 +130,7 @@ const ConfirmationModal = ({
   }, [onCancel]);
 
   return (
+    
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fadeIn"
       onClick={onCancel}
@@ -135,6 +138,7 @@ const ConfirmationModal = ({
       role="dialog"
       aria-labelledby="confirmation-title"
     >
+      
       <div 
         className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl shadow-xl border border-slate-700/70 max-w-md w-full animate-scaleIn"
         onClick={(e) => e.stopPropagation()}
@@ -431,6 +435,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       {/* Toast notifications */}
+
+
       {toast && (
         <Toast 
           message={toast.message} 

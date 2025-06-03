@@ -1,314 +1,294 @@
-import footballDataApiClient from '../api/footballApiClient';
-import cacheService, { createCacheKey } from './cacheService';
+import apiFootballClient from '../api/footballApiClient';
+import CacheService from './cacheService';
 
-// Constants - updated with current information
-const CURRENT_TIMESTAMP = "2025-05-20 13:30:46"; 
+// Current system information
+const CURRENT_TIMESTAMP = "2025-05-31 12:27:03";
 const CURRENT_USER = "Sdiabate1337";
 
-// Types for football-data.org league data
-export interface FootballDataLeague {
-  id: number;
+// Competition/League interface
+export interface Competition {
+  id: string;
   name: string;
-  code: string;
-  type: string;
+  code?: string;
   emblem: string;
+  type: string;
+  country: string;
   currentSeason?: {
     id: number;
     startDate: string;
     endDate: string;
-    currentMatchday: number;
-    winner?: {
-      id: number;
-      name: string;
-      shortName: string;
-      crest: string;
-    };
+    currentMatchday?: number;
   };
-  seasons?: Array<{
-    id: number;
-    startDate: string;
-    endDate: string;
-    currentMatchday: number;
-    winner?: {
-      id: number;
-      name: string;
-      shortName: string;
-      crest: string;
-    };
-  }>;
-  area: {
-    id: number;
+}
+
+// Standing interface
+export interface Standing {
+  position: number;
+  team: {
+    id: string;
     name: string;
-    code: string;
-    flag: string;
+    crest: string;
   };
+  playedGames: number;
+  won: number;
+  draw: number;
+  lost: number;
+  points: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  form?: string;
 }
 
-export interface LeaguesResponse {
-  count: number;
-  filters: Record<string, any>;
-  competitions: FootballDataLeague[];
-}
-
-// Our app's league format
-export interface FootballLeague {
-  id: string;
-  name: string;
-  logo: string;
-  country: string;
-  flag: string;
-  currentSeason: number | null;
-  type: 'league' | 'cup';
-  isFollowed: boolean;
-}
-
-// Map API league to our format
-const mapApiLeagueToAppLeague = (apiLeague: FootballDataLeague, favoriteLeagues: string[] = []): FootballLeague => {
-  console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} mapping league data: ${apiLeague.id}`);
-  
-  // Extract current season or null if not available
-  const currentSeason = apiLeague.currentSeason?.id || null;
-  
-  // Determine league type (cup or league)
-  let leagueType: 'league' | 'cup' = 'league';
-  if (apiLeague.type === 'CUP' || apiLeague.name.toLowerCase().includes('cup')) {
-    leagueType = 'cup';
-  }
-  
-  return {
-    id: apiLeague.id.toString(),
-    name: apiLeague.name,
-    logo: apiLeague.emblem || '/placeholder-league.png',
-    country: apiLeague.area?.name || 'International',
-    flag: apiLeague.area?.flag || '/placeholder-flag.png',
-    currentSeason,
-    type: leagueType,
-    isFollowed: favoriteLeagues.includes(apiLeague.id.toString())
+// Top scorer interface
+export interface TopScorer {
+  player: {
+    id: string;
+    name: string;
+    nationality: string;
+    position: string;
+    photo?: string;
   };
-};
+  team: {
+    id: string;
+    name: string;
+    logo: string;
+  };
+  goals: number;
+  assists: number;
+  appearances: number;
+}
 
-// League service functions
-const LeaguesService = {
-  // Get all leagues
-  getLeagues: async (favoriteLeagues: string[] = []) => {
-    try {
-      // Use standardized cache key format
-      const cacheKey = createCacheKey.search('leagues', 'all-current');
-      const cachedData = cacheService.get<{leagues: FootballLeague[], total: number}>(cacheKey);
-      
-      if (cachedData) {
-        // Update followed status with latest favorites even on cache hit
-        if (favoriteLeagues.length > 0) {
-          cachedData.leagues = cachedData.leagues.map(league => ({
-            ...league,
-            isFollowed: favoriteLeagues.includes(league.id)
-          }));
-        }
-        return cachedData;
-      }
-      
-      // football-data.org call for competitions (leagues)
-      const response = await footballDataApiClient.get('/competitions');
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched all leagues: ${response.data.count} results`);
-      
-      const result = {
-        leagues: response.data.competitions.map((league: FootballDataLeague) => 
-          mapApiLeagueToAppLeague(league, favoriteLeagues)
-        ),
-        total: response.data.count
-      };
-      
-      // Cache for 24 hours with category label
-      cacheService.set(cacheKey, result, 60 * 24, 'leagues');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching leagues for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
+// League service implementation for API-Football
+export default class LeaguesService {
+  private static CACHE_TTL = 30; // Cache for 30 minutes
   
-  // Get a single league by ID
-  getLeague: async (leagueId: string, favoriteLeagues: string[] = []) => {
-    try {
-      // Use standardized cache key function
-      const cacheKey = createCacheKey.league(leagueId);
-      const cachedData = cacheService.get<FootballLeague>(cacheKey);
-      
-      if (cachedData) {
-        // Update followed status with latest preference
-        return {
-          ...cachedData,
-          isFollowed: favoriteLeagues.includes(cachedData.id)
-        };
-      }
-      
-      const response = await footballDataApiClient.get(`/competitions/${leagueId}`);
-      
-      if (!response.data) {
-        throw new Error(`League with ID ${leagueId} not found`);
-      }
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched league: ${leagueId}`);
-      
-      const league = mapApiLeagueToAppLeague(response.data, favoriteLeagues);
-      
-      // Cache for 24 hours with category label
-      cacheService.set(cacheKey, league, 60 * 24, 'league');
-      return league;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching league ${leagueId} for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Search for leagues - Note: football-data.org doesn't support direct search, so we get all and filter
-  searchLeagues: async (query: string, favoriteLeagues: string[] = []) => {
-    try {
-      if (!query || query.length < 3) {
-        return { leagues: [], total: 0 };
-      }
-      
-      // Use standardized cache key function
-      const cacheKey = createCacheKey.search('leagues', query);
-      const cachedData = cacheService.get<{leagues: FootballLeague[], total: number}>(cacheKey);
-      
-      if (cachedData) {
-        // Update followed status with latest favorites even on cache hit
-        if (favoriteLeagues.length > 0) {
-          cachedData.leagues = cachedData.leagues.map(league => ({
-            ...league,
-            isFollowed: favoriteLeagues.includes(league.id)
-          }));
-        }
-        return cachedData;
-      }
-      
-      // First get all leagues since football-data.org doesn't have a search endpoint
-      const allLeaguesResponse = await footballDataApiClient.get('/competitions');
-      
-      // Filter leagues by query (case-insensitive)
-      const normalizedQuery = query.toLowerCase();
-      const filteredLeagues = allLeaguesResponse.data.competitions.filter((league: FootballDataLeague) => {
-        return league.name.toLowerCase().includes(normalizedQuery) || 
-               league.area?.name.toLowerCase().includes(normalizedQuery);
-      });
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} searched for leagues: "${query}" - ${filteredLeagues.length} results`);
-      
-      const result = {
-        leagues: filteredLeagues.map((league: FootballDataLeague) => 
-          mapApiLeagueToAppLeague(league, favoriteLeagues)
-        ),
-        total: filteredLeagues.length
-      };
-      
-      // Cache for 30 minutes with category label
-      cacheService.set(cacheKey, result, 30, 'search');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error searching leagues for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Get leagues by country
-  getLeaguesByCountry: async (country: string, favoriteLeagues: string[] = []) => {
-    try {
-      // Use standardized cache key approach
-      const cacheKey = createCacheKey.search('leagues-country', country);
-      const cachedData = cacheService.get<{leagues: FootballLeague[], total: number}>(cacheKey);
-      
-      if (cachedData) {
-        // Update followed status with latest favorites even on cache hit
-        if (favoriteLeagues.length > 0) {
-          cachedData.leagues = cachedData.leagues.map(league => ({
-            ...league,
-            isFollowed: favoriteLeagues.includes(league.id)
-          }));
-        }
-        return cachedData;
-      }
-      
-      // Get all leagues since football-data.org doesn't have a direct country filter
-      const allLeaguesResponse = await footballDataApiClient.get('/competitions');
-      
-      // Filter leagues by country (case-insensitive)
-      const normalizedCountry = country.toLowerCase();
-      const filteredLeagues = allLeaguesResponse.data.competitions.filter((league: FootballDataLeague) => {
-        return league.area?.name.toLowerCase() === normalizedCountry;
-      });
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched leagues for country: ${country} - ${filteredLeagues.length} results`);
-      
-      const result = {
-        leagues: filteredLeagues.map((league: FootballDataLeague) => 
-          mapApiLeagueToAppLeague(league, favoriteLeagues)
-        ),
-        total: filteredLeagues.length
-      };
-      
-      // Cache for 24 hours with category label
-      cacheService.set(cacheKey, result, 60 * 24, 'leagues');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching country leagues for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Get top leagues (tier one competitions)
-  getTopLeagues: async (favoriteLeagues: string[] = []) => {
-    try {
-      const cacheKey = createCacheKey.search('leagues', 'top-tier');
-      const cachedData = cacheService.get<{leagues: FootballLeague[], total: number}>(cacheKey);
-      
-      if (cachedData) {
-        if (favoriteLeagues.length > 0) {
-          cachedData.leagues = cachedData.leagues.map(league => ({
-            ...league,
-            isFollowed: favoriteLeagues.includes(league.id)
-          }));
-        }
-        return cachedData;
-      }
-      
-      // football-data.org has a specific endpoint for tier one competitions
-      const response = await footballDataApiClient.get('/competitions?plan=TIER_ONE');
-      
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} fetched top tier leagues: ${response.data.count} results`);
-      
-      const result = {
-        leagues: response.data.competitions.map((league: FootballDataLeague) => 
-          mapApiLeagueToAppLeague(league, favoriteLeagues)
-        ),
-        total: response.data.count
-      };
-      
-      // Cache for 24 hours with category label
-      cacheService.set(cacheKey, result, 60 * 24, 'leagues');
-      return result;
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error fetching top leagues for ${CURRENT_USER}:`, error);
-      throw error;
-    }
-  },
-  
-  // Clear league caches - useful when refreshing data
-  clearLeagueCache: () => {
-    try {
-      cacheService.clearByCategory('league');
-      cacheService.clearByCategory('leagues');
-      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared all league caches`);
-    } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error clearing league cache:`, error);
-    }
-  },
-  
-  // Get cache statistics
-  getCacheStats: () => {
-    return cacheService.getStats();
+  /**
+   * Convert API-Football league format to our Competition format
+   */
+  private static convertToCompetition(apiLeague: any): Competition {
+    return {
+      id: apiLeague.league.id.toString(),
+      name: apiLeague.league.name,
+      code: apiLeague.league.code,
+      emblem: apiLeague.league.logo,
+      type: apiLeague.league.type,
+      country: apiLeague.country.name,
+      currentSeason: apiLeague.seasons && apiLeague.seasons.length > 0 ? {
+        id: apiLeague.seasons[0].year,
+        startDate: apiLeague.seasons[0].start,
+        endDate: apiLeague.seasons[0].end,
+        currentMatchday: apiLeague.seasons[0].current ? 
+          apiLeague.seasons[0].current_round?.replace('Regular Season - ', '') : undefined
+      } : undefined
+    };
   }
-};
 
-export default LeaguesService;
+  /**
+   * Get all available competitions/leagues
+   */
+  static async getCompetitions(country?: string): Promise<Competition[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching competitions${country ? ` for country ${country}` : ''}`);
+    
+    const cacheKey = `competitions:${country || 'all'}`;
+    
+    return CacheService.getOrSet(cacheKey, async () => {
+      try {
+        const params: any = { current: true };
+        
+        if (country) {
+          params.country = country;
+        }
+        
+        const { data } = await apiFootballClient.getLeagues(params);
+        
+        if (!data.response || !Array.isArray(data.response)) {
+          return [];
+        }
+        
+        return data.response.map(this.convertToCompetition);
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Error fetching competitions:`, error);
+        throw error;
+      }
+    }, this.CACHE_TTL);
+  }
+
+  /**
+   * Get a specific competition by code or ID
+   */
+  static async getCompetition(codeOrId: string): Promise<Competition | null> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching competition: ${codeOrId}`);
+    
+    const cacheKey = `competition:${codeOrId}`;
+    
+    return CacheService.getOrSet(cacheKey, async () => {
+      try {
+        // Try to fetch by code first
+        let params: any = { code: codeOrId, current: true };
+        
+        let { data } = await apiFootballClient.getLeagues(params);
+        
+        // If not found by code, try by ID
+        if (!data.response || data.response.length === 0) {
+          params = { id: parseInt(codeOrId), current: true };
+          data = (await apiFootballClient.getLeagues(params)).data;
+        }
+        
+        if (!data.response || data.response.length === 0) {
+          console.log(`[${CURRENT_TIMESTAMP}] Competition not found: ${codeOrId}`);
+          return null;
+        }
+        
+        return this.convertToCompetition(data.response[0]);
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Error fetching competition:`, error);
+        throw error;
+      }
+    }, this.CACHE_TTL);
+  }
+
+  /**
+   * Get standings for a competition
+   */
+  static async getStandings(leagueId: string, season: number = 2023): Promise<Standing[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching standings for league: ${leagueId}, season: ${season}`);
+    
+    const cacheKey = `standings:${leagueId}:${season}`;
+    
+    return CacheService.getOrSet(cacheKey, async () => {
+      try {
+        const { data } = await apiFootballClient.getStandings({
+          league: parseInt(leagueId),
+          season
+        });
+        
+        if (!data.response || data.response.length === 0 || !data.response[0].league.standings) {
+          return [];
+        }
+        
+        // Use the first standings array (usually the main league table)
+        const standingsData = data.response[0].league.standings[0];
+        
+        return standingsData.map((standing: any) => ({
+          position: standing.rank,
+          team: {
+            id: standing.team.id.toString(),
+            name: standing.team.name,
+            crest: standing.team.logo
+          },
+          playedGames: standing.all.played,
+          won: standing.all.win,
+          draw: standing.all.draw,
+          lost: standing.all.lose,
+          points: standing.points,
+          goalsFor: standing.all.goals.for,
+          goalsAgainst: standing.all.goals.against,
+          goalDifference: standing.goalsDiff,
+          form: standing.form
+        }));
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Error fetching standings:`, error);
+        throw error;
+      }
+    }, 15); // Shorter TTL for standings (15 minutes)
+  }
+
+  /**
+   * Get top scorers for a competition
+   */
+  static async getTopScorers(leagueId: string, season: number = 2023, limit: number = 10): Promise<TopScorer[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching top scorers for league: ${leagueId}, season: ${season}`);
+    
+    const cacheKey = `topScorers:${leagueId}:${season}:${limit}`;
+    
+    return CacheService.getOrSet(cacheKey, async () => {
+      try {
+        const { data } = await apiFootballClient.getTopScorers({
+          league: parseInt(leagueId),
+          season
+        });
+        
+        if (!data.response || !Array.isArray(data.response)) {
+          return [];
+        }
+        
+        // Map and sort by goals
+        const scorers = data.response.map((item: any) => ({
+          player: {
+            id: item.player.id.toString(),
+            name: item.player.name,
+            nationality: item.player.nationality,
+            position: item.statistics[0].games.position,
+            photo: item.player.photo
+          },
+          team: {
+            id: item.statistics[0].team.id.toString(),
+            name: item.statistics[0].team.name,
+            logo: item.statistics[0].team.logo
+          },
+          goals: item.statistics[0].goals.total || 0,
+          assists: item.statistics[0].goals.assists || 0,
+          appearances: item.statistics[0].games.appearences || 0
+        }));
+        
+        // Sort by goals scored (descending)
+        scorers.sort((a, b) => b.goals - a.goals);
+        
+        // Return only the requested number of scorers
+        return scorers.slice(0, limit);
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Error fetching top scorers:`, error);
+        throw error;
+      }
+    }, this.CACHE_TTL);
+  }
+
+  /**
+   * Search for competitions by name
+   */
+  static async searchCompetitions(query: string): Promise<Competition[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is searching for competitions: ${query}`);
+    
+    try {
+      const { data } = await apiFootballClient.getLeagues({ search: query, current: true });
+      
+      if (!data.response || !Array.isArray(data.response)) {
+        return [];
+      }
+      
+      return data.response.map(this.convertToCompetition);
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Error searching competitions:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get available countries with leagues
+   */
+  static async getCountries(): Promise<{ name: string, code: string, flag?: string }[]> {
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching countries with leagues`);
+    
+    const cacheKey = 'countries:withLeagues';
+    
+    return CacheService.getOrSet(cacheKey, async () => {
+      try {
+        const { data } = await apiFootballClient.getCountries();
+        
+        if (!data.response || !Array.isArray(data.response)) {
+          return [];
+        }
+        
+        return data.response.map((country: any) => ({
+          name: country.name,
+          code: country.code,
+          flag: country.flag
+        }));
+      } catch (error) {
+        console.error(`[${CURRENT_TIMESTAMP}] Error fetching countries:`, error);
+        throw error;
+      }
+    }, 60 * 24); // Cache for 24 hours
+  }
+}
