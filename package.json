@@ -24,6 +24,7 @@
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
     "axios": "^1.9.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "firebase": "^11.6.1",
     "framer-motion": "^12.12.1",
