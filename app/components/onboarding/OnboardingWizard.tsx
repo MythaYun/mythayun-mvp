@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import { 
   FiX, FiArrowRight, FiArrowLeft, FiCheck, FiBell, 
   FiShield, FiStar, FiTrendingUp, FiInfo, FiHeart, FiUser,
-  FiCalendar
+  FiCalendar, FiAlertTriangle
 } from 'react-icons/fi';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 // Current system info
-const CURRENT_TIMESTAMP = "2025-05-17 02:37:39";
+const CURRENT_TIMESTAMP = "2025-06-03 20:29:34";
 const CURRENT_USER = "Sdiabate1337";
 
 // Update interface to pass preferences to parent
@@ -30,9 +30,14 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [animatingOut, setAnimatingOut] = useState(false);
   const [animatingIn, setAnimatingIn] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   const [preferences, setPreferences] = useState({
     favoriteLeagues: [] as string[],
     favoriteTeams: [] as string[],
+    favoriteMatches: [] as string[],
     notificationPreferences: {
       matchReminders: true,
       scoreUpdates: true,
@@ -104,7 +109,14 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       id: 'complete',
       title: 'All done!',
       description: 'Your space is now customized according to your preferences.',
-      component: <CompleteStep username={user?.name || CURRENT_USER} preferences={preferences} />,
+      component: (
+        <CompleteStep 
+          username={user?.name || CURRENT_USER} 
+          preferences={preferences}
+          isSubmitting={isSubmitting}
+          saveSuccess={saveSuccess}
+        />
+      ),
       icon: <FiCheck className="text-indigo-300" />
     }
   ];
@@ -130,25 +142,86 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     }
   };
 
-  // Handle onboarding completion
+  // Handle onboarding completion with DB save
   const completeOnboarding = async () => {
+    // Prevent multiple submissions
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    setError(null);
+    
     try {
-      console.log(`[${CURRENT_TIMESTAMP}] Onboarding completed by ${CURRENT_USER}, passing preferences to parent:`, 
-        JSON.stringify(preferences));
+      console.log(`[${CURRENT_TIMESTAMP}] Saving preferences to database for ${CURRENT_USER}`);
       
-      // Pass preferences to the parent component
-      onComplete(preferences);
+      // Send preferences to API endpoint for saving in the database
+      const response = await fetch('/api/user/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(preferences),
+        credentials: 'include' // Include cookies for authentication
+      });
+      
+      const data = await response.json();
+      
+      // Handle API response
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to save preferences');
+      }
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Preferences saved successfully to database:`, 
+        JSON.stringify(data, null, 2));
+      
+      // Mark as success and wait a short period to show success state
+      setSaveSuccess(true);
+      
+      // Delay before completing onboarding to show success state
+      setTimeout(() => {
+        onComplete(preferences);
+      }, 2000);
+      
     } catch (error) {
-      console.error(`[${CURRENT_TIMESTAMP}] Error during onboarding completion:`, error);
-      // Still pass preferences even if there's an error
-      onComplete(preferences);
+      console.error(`[${CURRENT_TIMESTAMP}] Error saving preferences to database:`, error);
+      setError(error instanceof Error ? error.message : 'Failed to save preferences');
+      setIsSubmitting(false);
     }
   };
 
-  // Skip onboarding
-  const skipOnboarding = () => {
-    console.log(`[${CURRENT_TIMESTAMP}] Onboarding skipped by ${CURRENT_USER}, passing default preferences`);
-    onComplete(preferences);
+  // Skip onboarding but still save default preferences
+  const skipOnboarding = async () => {
+    setIsSubmitting(true);
+    
+    try {
+      console.log(`[${CURRENT_TIMESTAMP}] User skipped onboarding, saving default preferences`);
+      
+      // Still attempt to save preferences to database
+      const response = await fetch('/api/user/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(preferences),
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log(`[${CURRENT_TIMESTAMP}] Default preferences saved successfully:`, 
+          JSON.stringify(data, null, 2));
+      } else {
+        console.error(`[${CURRENT_TIMESTAMP}] Failed to save default preferences:`, 
+          data.message);
+      }
+      
+      // Complete onboarding even if save fails
+      onComplete(preferences);
+    } catch (error) {
+      console.error(`[${CURRENT_TIMESTAMP}] Error during onboarding skip:`, error);
+      // Still complete onboarding even if there's an error
+      onComplete(preferences);
+    }
   };
 
   const currentStep = steps[currentStepIndex];
@@ -168,6 +241,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             onClick={skipOnboarding} 
             className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors p-2 hover:bg-indigo-800/20 rounded-full"
             aria-label="Close"
+            disabled={isSubmitting}
           >
             <FiX size={24} />
           </button>
@@ -230,6 +304,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               <button
                 onClick={prevStep}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-600 transition-all shadow-sm hover:shadow active:scale-95"
+                disabled={isSubmitting}
               >
                 <FiArrowLeft size={18} />
                 <span>Previous</span>
@@ -253,14 +328,43 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             ) : (
               <button
                 onClick={completeOnboarding}
-                className="flex items-center gap-2 px-6 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-500 hover:to-emerald-500 transition-all shadow-sm hover:shadow-md active:scale-95"
+                disabled={isSubmitting || saveSuccess}
+                className={`flex items-center gap-2 px-6 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-500 hover:to-emerald-500 transition-all shadow-sm hover:shadow-md ${
+                  isSubmitting || saveSuccess ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'
+                }`}
               >
-                <span>Finish</span>
-                <FiCheck size={18} />
+                {isSubmitting ? (
+                  <>
+                    <span>Saving...</span>
+                    <FiLoader className="animate-spin" size={18} />
+                  </>
+                ) : saveSuccess ? (
+                  <>
+                    <span>Saved!</span>
+                    <FiCheck size={18} />
+                  </>
+                ) : (
+                  <>
+                    <span>Finish</span>
+                    <FiCheck size={18} />
+                  </>
+                )}
               </button>
             )}
           </div>
         </div>
+        
+        {/* Error message */}
+        {error && (
+          <div className="px-6 sm:px-8 pb-4">
+            <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm">
+              <div className="flex items-start gap-2">
+                <FiAlertTriangle className="mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Bottom info text */}
         <div className="absolute bottom-2 right-3 text-[10px] text-slate-500">
@@ -633,39 +737,57 @@ function NotificationsStep({
   );
 }
 
-function CompleteStep({ username, preferences }: { username: string, preferences: { favoriteTeams: string[], favoriteLeagues: string[] } }) {
+function CompleteStep({ 
+  username, 
+  preferences, 
+  isSubmitting, 
+  saveSuccess 
+}: { 
+  username: string; 
+  preferences: { favoriteTeams: string[], favoriteLeagues: string[] };
+  isSubmitting: boolean;
+  saveSuccess: boolean;
+}) {
   const [countdown, setCountdown] = useState(3);
   
   useEffect(() => {
-    if (countdown > 0) {
+    // Only start countdown if successfully saved
+    if (saveSuccess && countdown > 0) {
       const timer = setTimeout(() => {
         setCountdown(countdown - 1);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [countdown]);
+  }, [countdown, saveSuccess]);
   
   return (
     <div className="text-center py-6">
       <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-6 shadow-lg">
-        <FiCheck size={48} className="text-white" />
+        {isSubmitting ? (
+          <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+        ) : (
+          <FiCheck size={48} className="text-white" />
+        )}
       </div>
       <h3 className="text-2xl font-bold text-white mb-3">
-        Perfect, {username}!
+        {isSubmitting ? `Saving your preferences...` : `Perfect, ${username}!`}
       </h3>
       <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 rounded-xl p-6 mb-4 max-w-md mx-auto border border-slate-700/50">
         <p className="text-slate-300">
-          Your personal space is now set up according to your preferences.
-          You can modify these settings at any time in the settings.
+          {isSubmitting 
+            ? "We're saving your preferences to personalize your experience..." 
+            : "Your personal space is now set up according to your preferences. You can modify these settings at any time."}
         </p>
       </div>
       
-      <div className="flex items-center justify-center gap-3 text-green-400">
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-900/30 text-green-500 font-medium">
-          {countdown}
+      {saveSuccess && (
+        <div className="flex items-center justify-center gap-3 text-green-400">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-900/30 text-green-500 font-medium">
+            {countdown}
+          </div>
+          <p>Auto-redirecting to your personalized dashboard...</p>
         </div>
-        <p>Auto-redirecting to your personalized dashboard...</p>
-      </div>
+      )}
       
       <div className="mt-6 grid grid-cols-3 gap-3 max-w-xs mx-auto">
         <div className="bg-slate-800/50 rounded-lg p-2 text-center">
@@ -701,6 +823,32 @@ function FiSearch({ size }: { size: number }) {
     >
       <circle cx="11" cy="11" r="8"></circle>
       <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+  );
+}
+
+function FiLoader({ size, className }: { size: number; className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      className={className}
+    >
+      <line x1="12" y1="2" x2="12" y2="6"></line>
+      <line x1="12" y1="18" x2="12" y2="22"></line>
+      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+      <line x1="2" y1="12" x2="6" y2="12"></line>
+      <line x1="18" y1="12" x2="22" y2="12"></line>
+      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
     </svg>
   );
 }

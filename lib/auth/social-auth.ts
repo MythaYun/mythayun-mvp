@@ -285,30 +285,26 @@ export function getFacebookOAuthURL(): string {
     throw new Error('FACEBOOK_APP_ID is not defined in environment variables');
   }
   
-  if (!process.env.FACEBOOK_APP_SECRET) {
-    console.warn(`[${timestamp}] Warning: FACEBOOK_APP_SECRET is not defined`);
-  }
-
   // Base Facebook OAuth URL
   const rootUrl = 'https://www.facebook.com/v16.0/dialog/oauth';
   
   // Determine base URL for the application
-  let baseUrl = '';
+  let baseUrl;
   
-  if (process.env.CODESPACE_NAME) {
-    // GitHub Codespaces - use port 3000 variant
-    baseUrl = `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
-    console.log(`[${timestamp}] Using GitHub Codespaces URL: ${baseUrl}`);
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    // Production environment
+    baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://mythayun-mvp-git-staging-mythayuns-projects.vercel.app';
+    console.log(`[${timestamp}] Using production URL: ${baseUrl}`);
   } else {
-    // Standard environment
-    baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    console.log(`[${timestamp}] Using standard URL: ${baseUrl}`);
+    // Local development
+    baseUrl = 'http://localhost:3000';
+    console.log(`[${timestamp}] Using local development URL: ${baseUrl}`);
   }
   
   // Ensure baseUrl doesn't have a trailing slash
   baseUrl = baseUrl.replace(/\/$/, '');
   
-  // Construct the full redirect URI - CRITICAL for Facebook
+  // Construct the full redirect URI
   const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
   console.log(`[${timestamp}] Facebook redirect URI: ${redirectUri}`);
   
@@ -325,7 +321,7 @@ export function getFacebookOAuthURL(): string {
     scope: 'email,public_profile',
     response_type: 'code',
     auth_type: 'rerequest',
-    display: 'page', // Use 'page' for full-page redirect
+    display: 'page',
     state
   };
 
@@ -333,11 +329,7 @@ export function getFacebookOAuthURL(): string {
   const qs = new URLSearchParams(options);
   const finalUrl = `${rootUrl}?${qs.toString()}`;
   
-  console.log(`[${timestamp}] Generated Facebook OAuth URL with parameters:`, { 
-    client_id: options.client_id.substring(0, 5) + '...',
-    redirect_uri: options.redirect_uri,
-    state: options.state.substring(0, 10) + '...'
-  });
+  console.log(`[${timestamp}] Generated Facebook OAuth URL: ${finalUrl.substring(0, 100)}...`);
   
   return finalUrl;
 }
