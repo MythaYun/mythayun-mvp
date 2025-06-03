@@ -34,10 +34,12 @@ export async function GET(request: NextRequest) {
     console.log(`[${timestamp}] User is ${newUser ? 'new' : 'returning'}, redirecting to ${redirectPath}`);
     
     // CRITICAL FIX: Use the correct GitHub Codespaces URL format
+  
     if (process.env.CODESPACE_NAME) {
       // Use codespace name with -3000 suffix
       const codespaceBaseUrl = `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
       const absoluteUrl = `${codespaceBaseUrl}${redirectPath}`;
+      
       
       console.log(`[${timestamp}] Using absolute URL for Codespaces: ${absoluteUrl}`);
       

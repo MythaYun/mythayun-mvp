@@ -16,13 +16,20 @@ const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 
 // Base URL function
 const getBaseUrl = () => {
+  // Explicitly check for production environment
+  if (process.env.NODE_ENV === 'test') {
+    // Use the public URL from Vercel
+    return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 
+           'https://mythayun-mvp-git-staging-mythayuns-projects.vercel.app';
+  }
+  
+  // Development in Codespaces
   if (process.env.CODESPACE_NAME) {
-    // Use port 3000 variant as per your confirmation
     return `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
   }
   
-  // Fallback to configured URL or localhost
-  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000';
+  // Local development fallback
+  return 'http://localhost:3000';
 };
 
 // Generate Google OAuth URL
