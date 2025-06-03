@@ -15,20 +15,27 @@ const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || '';
 const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 
 // Base URL function
+// Replace your getBaseUrl function with this corrected version
 const getBaseUrl = () => {
-  // Explicitly check for production environment
-  if (process.env.NODE_ENV === 'test') {
-    // Use the public URL from Vercel
-    return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 
-           'https://mythayun-mvp-git-staging-mythayuns-projects.vercel.app';
+  console.log(`Environment check: NODE_ENV=${process.env.NODE_ENV}, VERCEL=${!!process.env.VERCEL}`);
+  
+  // Check for Vercel production environment
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    const url = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 
+                'https://mythayun-mvp-git-staging-mythayuns-projects.vercel.app';
+    console.log(`Using production URL: ${url}`);
+    return url;
   }
   
   // Development in Codespaces
   if (process.env.CODESPACE_NAME) {
-    return `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
+    const url = `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
+    console.log(`Using Codespaces URL: ${url}`);
+    return url;
   }
   
   // Local development fallback
+  console.log('Using localhost URL');
   return 'http://localhost:3000';
 };
 
