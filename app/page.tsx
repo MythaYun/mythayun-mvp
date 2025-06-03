@@ -13,17 +13,16 @@ export default function Page() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div style={{ padding: '50px', textAlign: 'center' }}>
-        <h1>Welcome to the Football Data App</h1>
-        
-        {/* System info section */}
-        <div className="system-info" style={{ margin: '15px 0', fontSize: '0.9rem', color: '#6c757d' }}>
-          <p>Current time: {CURRENT_TIMESTAMP}</p>
-          <p>User: {CURRENT_USER}</p>
-        </div>
         
         {/* Conditionally render the Football API Test link */}
         {isDevelopment && (
           <>
+            <h1>Welcome to the Football Data App</h1>
+          {/* System info section */}
+            <div className="system-info" style={{ margin: '15px 0', fontSize: '0.9rem', color: '#6c757d' }}>
+              <p>Current time: {CURRENT_TIMESTAMP}</p>
+              <p>User: {CURRENT_USER}</p>
+            </div>
             <p>Click below to test the Football Data API integration</p>
             <Link 
               href="/football-test" 
