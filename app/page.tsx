@@ -12,11 +12,12 @@ export default function Page() {
   
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <div style={{ padding: '50px', textAlign: 'center' }}>
+      
         
         {/* Conditionally render the Football API Test link */}
         {isDevelopment && (
           <>
+          <div style={{ padding: '50px', textAlign: 'center' }}></div>
             <h1>Welcome to the Football Data App</h1>
           {/* System info section */}
             <div className="system-info" style={{ margin: '15px 0', fontSize: '0.9rem', color: '#6c757d' }}>
@@ -40,7 +41,7 @@ export default function Page() {
             </Link>
           </>
         )}
-      </div>
+
       <HomePage />
     </Suspense>
   );
