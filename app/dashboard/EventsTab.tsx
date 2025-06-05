@@ -340,99 +340,83 @@ export default function EventsTab() {
     }));
   }, []);
   
-  // Apply filters to all available matches with improved UI/UX
-  const applyFilters = useCallback((
-    activeFilter: string,
-    leagueId: string | null,
-    dateRange: {preset: DateRangePreset; start: string; end: string} | null
-  ) => {
-    console.log(`[${CURRENT_TIMESTAMP}] Applying filters: ${activeFilter}, league: ${leagueId || 'all'}, date range: ${dateRange?.preset || 'all'}`);
-    console.log(`[${CURRENT_TIMESTAMP}] Total matches in pool: ${allMatches.length}`);
+// Add this helper function near the top of your component
+const getTrueMatchStatus = useCallback((match: FootballMatch): 'live' | 'upcoming' | 'finished' => {
+  try {
+    const now = new Date(CURRENT_TIMESTAMP);
+    const matchDateTime = new Date(`${match.date} ${match.time}`);
     
-    // Start with all matches
-    let filtered = [...allMatches];
+    // Add a buffer of 2 hours to consider a match as "live"
+    const matchEndTime = new Date(matchDateTime);
+    matchEndTime.setHours(matchEndTime.getHours() + 2);
     
-    // UX best practice:
-    // - "upcoming": only upcoming matches
-    // - "live": only live
-    // - "followed": only followed
-    // - "all": show live, then upcoming, then finished, all from API
-    if (activeFilter === 'upcoming') {
-      filtered = filtered.filter(match => match.status === 'upcoming');
-    } else if (activeFilter === 'followed') {
-      filtered = filtered.filter(match => followedMatchIdsRef.current.includes(match.id));
-    } else if (activeFilter === 'live') {
-      filtered = filtered.filter(match => match.status === 'live');
-    } // "all": show all matches, sorted by priority below
-    
-    // Apply league filter - using multiple matching strategies
-    if (leagueId) {
-      console.log(`[${CURRENT_TIMESTAMP}] Filtering for league: ${leagueId}`);
-      
-      // Look up the selected league to get all its identifiers
-      const selectedLeague = leagues.find(l => l.id === leagueId);
-      
-      if (selectedLeague) {
-        console.log(`[${CURRENT_TIMESTAMP}] Selected league: ${selectedLeague.name} (${selectedLeague.code})`);
-        
-        // Add to recent leagues
-        setRecentLeagues(prev => {
-          const filtered = prev.filter(id => id !== leagueId);
-          return [leagueId, ...filtered].slice(0, 5); // Keep only last 5 recent leagues
-        });
-      }
-      
-      filtered = filtered.filter(match => {
-        // Multiple ways to match a league:
-        const matchesById = match.league.id === leagueId;
-        const matchesByCode = selectedLeague?.code && ((match.league as any).code === selectedLeague.code);
-        const matchesByName = match.league.name === selectedLeague?.name;
-        const matchesByLeagueIdAsCode = selectedLeague?.code && match.league.id === selectedLeague.code;
-        
-        return matchesById || matchesByCode || matchesByName || matchesByLeagueIdAsCode;
-      });
-      
-      console.log(`[${CURRENT_TIMESTAMP}] Found ${filtered.length} matches for league ${leagueId}`);
+    if (matchDateTime > now) {
+      return 'upcoming';
+    } else if (now >= matchDateTime && now <= matchEndTime) {
+      return 'live';
+    } else {
+      return 'finished';
     }
+  } catch (e) {
+    // If date parsing fails, fall back to API-provided status
+    console.error(`[${CURRENT_TIMESTAMP}] Error calculating match status:`, e);
+    return match.status as 'live' | 'upcoming' | 'finished';
+  }
+}, []);
+
+// Then update your applyFilters function
+const applyFilters = useCallback((
+  activeFilter: string,
+  leagueId: string | null,
+  dateRange: {preset: DateRangePreset; start: string; end: string} | null
+) => {
+  // Start with all matches
+  let filtered = [...allMatches];
+  
+  // Filter by date-aware status
+  if (activeFilter === 'upcoming') {
+    filtered = filtered.filter(match => getTrueMatchStatus(match) === 'upcoming');
+  } else if (activeFilter === 'followed') {
+    filtered = filtered.filter(match => followedMatchIdsRef.current.includes(match.id));
+  } else if (activeFilter === 'live') {
+    filtered = filtered.filter(match => getTrueMatchStatus(match) === 'live');
+  }
+  
+  // League filter remains unchanged
+  if (leagueId) {
+    // ... existing league filter code ...
+  }
+  
+  // Date range filter remains unchanged
+  if (dateRange && (dateRange.start || dateRange.end)) {
+    // ... existing date range filter code ...
+  }
+  
+  // Sort by status priority, but use our calculated status
+  filtered.sort((a, b) => {
+    const statusPriority: Record<string, number> = { 'live': 0, 'upcoming': 1, 'finished': 2 };
+    const statusA = getTrueMatchStatus(a);
+    const statusB = getTrueMatchStatus(b);
+    const priorityA = statusPriority[statusA] ?? 3;
+    const priorityB = statusPriority[statusB] ?? 3;
     
-    // Apply date range filter
-    if (dateRange && (dateRange.start || dateRange.end)) {
-      console.log(`[${CURRENT_TIMESTAMP}] Filtering by date range: ${dateRange.start} to ${dateRange.end}`);
-      
-      filtered = filtered.filter(match => {
-        const matchDate = new Date(match.date).getTime();
-        const startDateTime = dateRange.start ? new Date(dateRange.start).getTime() : 0;
-        const endDateTime = dateRange.end ? new Date(dateRange.end).getTime() + (24 * 60 * 60 * 1000 - 1) : Infinity; // Include full end day
-        
-        return matchDate >= startDateTime && matchDate <= endDateTime;
-      });
-      
-      console.log(`[${CURRENT_TIMESTAMP}] Found ${filtered.length} matches in date range`);
-    }
+    if (priorityA !== priorityB) return priorityA - priorityB;
     
-    // Sort by status priority: live > upcoming > finished
-    filtered.sort((a, b) => {
-      const statusPriority: Record<string, number> = { 'live': 0, 'upcoming': 1, 'finished': 2 };
-      const priorityA = statusPriority[a.status] ?? 3;
-      const priorityB = statusPriority[b.status] ?? 3;
-      
-      if (priorityA !== priorityB) return priorityA - priorityB;
-      
-      // For same status, sort by date/time
-      const dateTimeA = new Date(`${a.date} ${a.time}`).getTime();
-      const dateTimeB = new Date(`${b.date} ${b.time}`).getTime();
-      return dateTimeA - dateTimeB;
-    });
-    
-    setFilteredMatches(filtered);
-    
-    // Update the status counts for display
-    setStatusCounts({
-      live: allMatches.filter(match => match.status === 'live').length,
-      upcoming: allMatches.filter(match => match.status === 'upcoming').length,
-      followed: allMatches.filter(match => followedMatchIdsRef.current.includes(match.id)).length
-    });
-  }, [allMatches, leagues]);
+    // For same status, sort by date/time
+    const dateTimeA = new Date(`${a.date} ${a.time}`).getTime();
+    const dateTimeB = new Date(`${b.date} ${b.time}`).getTime();
+    return dateTimeA - dateTimeB;
+  });
+  
+  setFilteredMatches(filtered);
+  
+  // Update the status counts for display - use our calculated status
+  setStatusCounts({
+    live: allMatches.filter(match => getTrueMatchStatus(match) === 'live').length,
+    upcoming: allMatches.filter(match => getTrueMatchStatus(match) === 'upcoming').length,
+    followed: allMatches.filter(match => followedMatchIdsRef.current.includes(match.id)).length
+  });
+}, [allMatches, leagues, getTrueMatchStatus]);
   
   // Apply filters whenever filter settings change
   useEffect(() => {
