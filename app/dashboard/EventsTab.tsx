@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'next/navigation';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-06-02 11:18:03";
+const CURRENT_TIMESTAMP = "2025-06-05 18:24:08";
 const CURRENT_USER = "Sdiabate1337";
 
 // Base64 encoded placeholder images
@@ -340,22 +340,30 @@ export default function EventsTab() {
     }));
   }, []);
   
-  // Apply filters to all available matches
-  const applyFilters = useCallback((activeFilter: string, leagueId: string | null, dateRange: {preset: DateRangePreset; start: string; end: string} | null) => {
+  // Apply filters to all available matches with improved UI/UX
+  const applyFilters = useCallback((
+    activeFilter: string,
+    leagueId: string | null,
+    dateRange: {preset: DateRangePreset; start: string; end: string} | null
+  ) => {
     console.log(`[${CURRENT_TIMESTAMP}] Applying filters: ${activeFilter}, league: ${leagueId || 'all'}, date range: ${dateRange?.preset || 'all'}`);
     console.log(`[${CURRENT_TIMESTAMP}] Total matches in pool: ${allMatches.length}`);
     
     // Start with all matches
     let filtered = [...allMatches];
     
-    // Apply status filter
-    if (activeFilter === 'followed') {
-      filtered = filtered.filter(match => followedMatchIdsRef.current.includes(match.id));
-    } else if (activeFilter === 'upcoming') {
+    // UX best practice:
+    // - "upcoming": only upcoming matches
+    // - "live": only live
+    // - "followed": only followed
+    // - "all": show live, then upcoming, then finished, all from API
+    if (activeFilter === 'upcoming') {
       filtered = filtered.filter(match => match.status === 'upcoming');
+    } else if (activeFilter === 'followed') {
+      filtered = filtered.filter(match => followedMatchIdsRef.current.includes(match.id));
     } else if (activeFilter === 'live') {
       filtered = filtered.filter(match => match.status === 'live');
-    }
+    } // "all": show all matches, sorted by priority below
     
     // Apply league filter - using multiple matching strategies
     if (leagueId) {
@@ -405,8 +413,8 @@ export default function EventsTab() {
     // Sort by status priority: live > upcoming > finished
     filtered.sort((a, b) => {
       const statusPriority: Record<string, number> = { 'live': 0, 'upcoming': 1, 'finished': 2 };
-      const priorityA = statusPriority[a.status] || 3;
-      const priorityB = statusPriority[b.status] || 3;
+      const priorityA = statusPriority[a.status] ?? 3;
+      const priorityB = statusPriority[b.status] ?? 3;
       
       if (priorityA !== priorityB) return priorityA - priorityB;
       
@@ -1261,11 +1269,11 @@ export default function EventsTab() {
                                 className={`absolute right-10 p-1 rounded-md ${
                                   favoriteLeagues.includes(league.id)
                                     ? 'text-yellow-400 hover:bg-slate-600/50'
-                                                                       : 'text-slate-500 opacity-0 group-hover:opacity-100 hover:text-yellow-400 hover:bg-slate-600/50'
+                                    : 'text-slate-500 opacity-0 group-hover:opacity-100 hover:text-yellow-400 hover:bg-slate-600/50'
                                 }`}
                                 onClick={(e) => toggleFavoriteLeague(league.id, e)}
                               >
-                                <FiStar size={14} fill={favoriteLeagues.includes(league.id) ? 'currentColor' : 'none'} />
+                                                                <FiStar size={14} fill={favoriteLeagues.includes(league.id) ? 'currentColor' : 'none'} />
                               </button>
                               
                               {leagueFilter === league.id && (
@@ -1505,7 +1513,7 @@ export default function EventsTab() {
         </div>
       )}
       
-      {/* Matches list - keep the original UI here */}
+      {/* Matches list */}
       {isLoadingMatches || loadingCompetitionMatches ? (
         <div className="flex flex-col items-center justify-center py-16 bg-slate-700/20 rounded-xl">
           <div className="relative">
@@ -1763,7 +1771,7 @@ export default function EventsTab() {
         <div className="flex justify-between items-center">
           <h3 className="text-white font-medium mb-2">Debug Panel</h3>
           <div className="text-slate-400">
-            Current Time: 2025-06-02 11:22:27
+            Current Time: 2025-06-05 18:29:26
           </div>
         </div>
         <div className="flex gap-2 mb-3">
@@ -1787,7 +1795,7 @@ export default function EventsTab() {
             </span>
           )}
           <span className="px-2 py-0.5 rounded bg-slate-600/20 text-slate-400">
-            User: Sdiabate1337
+            User: {username}
           </span>
         </div>
         <div className="text-xs text-slate-400">
