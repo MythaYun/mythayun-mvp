@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'next/navigation';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-06-05 18:24:08";
+const CURRENT_TIMESTAMP = "2025-06-05 19:28:44";
 const CURRENT_USER = "Sdiabate1337";
 
 // Base64 encoded placeholder images
@@ -106,7 +106,6 @@ export default function EventsTab() {
   const [filteredMatches, setFilteredMatches] = useState<FootballMatch[]>([]);
   const [filter, setFilter] = useState<'all' | 'followed' | 'upcoming' | 'live'>('upcoming');
   const [leagueFilter, setLeagueFilter] = useState<string | null>(null);
-  const [expandedFilters, setExpandedFilters] = useState<boolean>(false);
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [deviceType, setDeviceType] = useState<'mobile' | 'desktop'>('desktop');
   const [statusCounts, setStatusCounts] = useState<StatusCounts>({
@@ -155,7 +154,7 @@ export default function EventsTab() {
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Check if mobile - memoize the handler
+  // Check if mobile
   useEffect(() => {
     const checkIfMobile = () => {
       setDeviceType(window.innerWidth < 768 ? 'mobile' : 'desktop');
@@ -340,31 +339,33 @@ export default function EventsTab() {
     }));
   }, []);
   
-// Add this helper function near the top of your component
-const getTrueMatchStatus = useCallback((match: FootballMatch): 'live' | 'upcoming' | 'finished' => {
+  // Apply filters to all available matches - use API status directly
+const getActualMatchStatus = useCallback((match: FootballMatch): 'live' | 'upcoming' | 'finished' => {
   try {
+    // First, trust the API if it says a match is live
+    if (match.status === 'live') {
+      return 'live';
+    }
+    
+    // For others, check the date against current time
     const now = new Date(CURRENT_TIMESTAMP);
     const matchDateTime = new Date(`${match.date} ${match.time}`);
     
-    // Add a buffer of 2 hours to consider a match as "live"
-    const matchEndTime = new Date(matchDateTime);
-    matchEndTime.setHours(matchEndTime.getHours() + 2);
-    
+    // If match time is in the future, it's upcoming regardless of API status
     if (matchDateTime > now) {
       return 'upcoming';
-    } else if (now >= matchDateTime && now <= matchEndTime) {
-      return 'live';
-    } else {
+    } 
+    // If match time is in the past, it's finished regardless of API status
+    else {
       return 'finished';
     }
   } catch (e) {
-    // If date parsing fails, fall back to API-provided status
     console.error(`[${CURRENT_TIMESTAMP}] Error calculating match status:`, e);
-    return match.status as 'live' | 'upcoming' | 'finished';
+    return match.status as 'live' | 'upcoming' | 'finished'; // Fallback to API status
   }
 }, []);
 
-// Then update your applyFilters function
+// Then modify your applyFilters function to use this actual status
 const applyFilters = useCallback((
   activeFilter: string,
   leagueId: string | null,
@@ -373,32 +374,22 @@ const applyFilters = useCallback((
   // Start with all matches
   let filtered = [...allMatches];
   
-  // Filter by date-aware status
+  // Filter by actual status (not just API status)
   if (activeFilter === 'upcoming') {
-    filtered = filtered.filter(match => getTrueMatchStatus(match) === 'upcoming');
+    filtered = filtered.filter(match => getActualMatchStatus(match) === 'upcoming');
   } else if (activeFilter === 'followed') {
     filtered = filtered.filter(match => followedMatchIdsRef.current.includes(match.id));
   } else if (activeFilter === 'live') {
-    filtered = filtered.filter(match => getTrueMatchStatus(match) === 'live');
+    filtered = filtered.filter(match => match.status === 'live'); // Live status from API is usually reliable
   }
   
-  // League filter remains unchanged
-  if (leagueId) {
-    // ... existing league filter code ...
-  }
+  // Rest of your filtering logic remains the same...
   
-  // Date range filter remains unchanged
-  if (dateRange && (dateRange.start || dateRange.end)) {
-    // ... existing date range filter code ...
-  }
-  
-  // Sort by status priority, but use our calculated status
+  // When sorting, use the actual status for priority
   filtered.sort((a, b) => {
     const statusPriority: Record<string, number> = { 'live': 0, 'upcoming': 1, 'finished': 2 };
-    const statusA = getTrueMatchStatus(a);
-    const statusB = getTrueMatchStatus(b);
-    const priorityA = statusPriority[statusA] ?? 3;
-    const priorityB = statusPriority[statusB] ?? 3;
+    const priorityA = statusPriority[getActualMatchStatus(a)] ?? 3;
+    const priorityB = statusPriority[getActualMatchStatus(b)] ?? 3;
     
     if (priorityA !== priorityB) return priorityA - priorityB;
     
@@ -410,13 +401,13 @@ const applyFilters = useCallback((
   
   setFilteredMatches(filtered);
   
-  // Update the status counts for display - use our calculated status
+  // Update status counts with actual counts
   setStatusCounts({
-    live: allMatches.filter(match => getTrueMatchStatus(match) === 'live').length,
-    upcoming: allMatches.filter(match => getTrueMatchStatus(match) === 'upcoming').length,
+    live: allMatches.filter(match => match.status === 'live').length,
+    upcoming: allMatches.filter(match => getActualMatchStatus(match) === 'upcoming').length,
     followed: allMatches.filter(match => followedMatchIdsRef.current.includes(match.id)).length
   });
-}, [allMatches, leagues, getTrueMatchStatus]);
+}, [allMatches, leagues, getActualMatchStatus]);
   
   // Apply filters whenever filter settings change
   useEffect(() => {
@@ -425,8 +416,7 @@ const applyFilters = useCallback((
     // Apply the current filter settings
     applyFilters(filter, leagueFilter, activeFilters.dateRange);
     
-    console.log(`[${CURRENT_TIMESTAMP}] ${username} applied filters: ${filter}, league: ${leagueFilter || 'all'}, date range: ${activeFilters.dateRange?.preset || 'all'}`);
-  }, [filter, leagueFilter, activeFilters.dateRange, applyFilters, username, allMatches]);
+  }, [filter, leagueFilter, activeFilters.dateRange, applyFilters, allMatches]);
   
   // Update followedMatchIds ref when the state changes
   useEffect(() => {
@@ -448,17 +438,12 @@ const applyFilters = useCallback((
       e.stopPropagation();
     }
     
-    // Log the navigation attempt
-    console.log(`[${CURRENT_TIMESTAMP}] ${username} is viewing details for match ${matchId}`);
-    
     // Navigate to the match detail page using Next.js router
     router.push(`/match/${matchId}`);
-  }, [router, username]);
+  }, [router]);
   
   // Change league filter and fetch competition matches
   const changeLeagueFilter = useCallback((leagueId: string | null) => {
-    console.log(`[${CURRENT_TIMESTAMP}] ${username} changing league filter to: ${leagueId || 'all'}`);
-    
     // If the same league is clicked again, clear the filter
     if (leagueId === leagueFilter) {
       setLeagueFilter(null);
@@ -477,11 +462,10 @@ const applyFilters = useCallback((
     if (leagueId) {
       const selectedLeague = leagues.find(l => l.id === leagueId);
       if (selectedLeague?.code) {
-        console.log(`[${CURRENT_TIMESTAMP}] Fetching matches for league: ${selectedLeague.name} (${selectedLeague.code})`);
         loadCompetitionMatches(selectedLeague.code);
       }
     }
-  }, [leagueFilter, username, leagues, loadCompetitionMatches]);
+  }, [leagueFilter, leagues, loadCompetitionMatches]);
   
   // Toggle following a match - memoize this function
   const toggleFollowMatch = useCallback((matchId: string, event?: React.MouseEvent) => {
@@ -497,12 +481,9 @@ const applyFilters = useCallback((
         ? prev.filter(id => id !== matchId) 
         : [...prev, matchId];
       
-      // Log action
-      console.log(`[${CURRENT_TIMESTAMP}] ${username} ${isCurrentlyFollowed ? 'unfollowed' : 'followed'} match ${matchId} (local state only)`);
-      
       return updated;
     });
-  }, [username]);
+  }, []);
   
   // Handle match expansion
   const toggleExpandMatch = useCallback((matchId: string) => {
@@ -511,8 +492,6 @@ const applyFilters = useCallback((
   
   // Handle refresh - uses context's refreshData function
   const handleRefresh = useCallback(async () => {
-    console.log(`[${CURRENT_TIMESTAMP}] ${username} manually refreshed match data`);
-    
     // Refresh the regular matches
     await refreshData();
     
@@ -523,7 +502,7 @@ const applyFilters = useCallback((
         loadCompetitionMatches(selectedLeague.code);
       }
     }
-  }, [refreshData, username, leagueFilter, leagues, loadCompetitionMatches]);
+  }, [refreshData, leagueFilter, leagues, loadCompetitionMatches]);
   
   // Toggle favorite league
   const toggleFavoriteLeague = useCallback((leagueId: string, event?: React.MouseEvent) => {
@@ -690,15 +669,9 @@ const applyFilters = useCallback((
     setFilterView('date');
   }, []);
 
-  // Create a mock debugInfo object to maintain compatibility
-  const debugInfo = {
-    apiResponse: allMatches.slice(0, 2), // Just show a couple matches in debug
-    toggleMockData: () => console.log(`[${CURRENT_TIMESTAMP}] Mock data toggle requested - using real data`),
-    clearCache: () => console.log(`[${CURRENT_TIMESTAMP}] Cache clear requested`)
-  };
-
   return (
     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 sm:p-6 shadow-lg border border-slate-700/50" ref={containerRef}>
+      {/* Component header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -724,9 +697,9 @@ const applyFilters = useCallback((
         </div>
       </div>
       
-      {/* Enhanced Filter Bar */}
+      {/* Filter Bar */}
       <div className="mb-6">
-        {/* Primary filters with visual enhancements */}
+        {/* Primary filters */}
         <div className="mb-3">
           <div className="bg-slate-800/50 p-1 rounded-xl shadow-inner grid grid-cols-4 gap-1">
             <button 
@@ -882,7 +855,7 @@ const applyFilters = useCallback((
         </div>
       </div>
       
-      {/* Date Filter Modal */}
+      {/* Modals - Date Filter Modal */}
       {dateFilterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
           <div 
@@ -1206,6 +1179,7 @@ const applyFilters = useCallback((
                 </>
               )}
               
+              {/* Region view */}
               {filterView === 'regions' && (
                 <div className="space-y-4">
                   {/* European Leagues */}
@@ -1257,7 +1231,7 @@ const applyFilters = useCallback((
                                 }`}
                                 onClick={(e) => toggleFavoriteLeague(league.id, e)}
                               >
-                                                                <FiStar size={14} fill={favoriteLeagues.includes(league.id) ? 'currentColor' : 'none'} />
+                                <FiStar size={14} fill={favoriteLeagues.includes(league.id) ? 'currentColor' : 'none'} />
                               </button>
                               
                               {leagueFilter === league.id && (
@@ -1302,7 +1276,7 @@ const applyFilters = useCallback((
                               ) : (
                                 <div className="w-7 h-7 rounded-md bg-slate-600 flex items-center justify-center text-sm">
                                   {league.name.slice(0, 2)}
-                                </div>
+                                                                </div>
                               )}
                               
                               <div className="flex-1 min-w-0">
@@ -1755,7 +1729,7 @@ const applyFilters = useCallback((
         <div className="flex justify-between items-center">
           <h3 className="text-white font-medium mb-2">Debug Panel</h3>
           <div className="text-slate-400">
-            Current Time: 2025-06-05 18:29:26
+            Current Time: 2025-06-05 19:35:52
           </div>
         </div>
         <div className="flex gap-2 mb-3">
@@ -1773,11 +1747,12 @@ const applyFilters = useCallback((
           <span className={`px-2 py-0.5 rounded ${allMatches.length > 0 ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
             {allMatches.length} total matches
           </span>
-          {competitionMatches.length > 0 && (
-            <span className={`px-2 py-0.5 rounded bg-blue-600/20 text-blue-400`}>
-              {competitionMatches.length} competition matches
-            </span>
-          )}
+          <span className={`px-2 py-0.5 rounded bg-orange-600/20 text-orange-400`}>
+            {allMatches.filter(match => match.status === 'upcoming').length} API upcoming
+          </span>
+          <span className={`px-2 py-0.5 rounded bg-purple-600/20 text-purple-400`}>
+            {allMatches.filter(match => match.status === 'live').length} API live
+          </span>
           <span className="px-2 py-0.5 rounded bg-slate-600/20 text-slate-400">
             User: {username}
           </span>

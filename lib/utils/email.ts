@@ -1,116 +1,46 @@
-'use server';
+'use strict';
 
-import nodemailer from 'nodemailer';
+import formData from 'form-data';
+import Mailgun from 'mailgun.js';
+import type { MailgunMessageData } from 'mailgun.js';
 
-// Configuration système actuelle
-const CURRENT_TIMESTAMP = "2025-05-10 03:09:10";
-const CURRENT_USER = "Sdiabate1337";
+// Initialize Mailgun
+const mailgun = new Mailgun(formData);
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAILGUN_API_KEY || '',
+});
 
-// Get host name, defaulting to "mailhog" for docker-compose environments
-// but allowing override through environment variables
-const emailHost = process.env.EMAIL_HOST || 'mailhog';
-const emailPort = Number(process.env.EMAIL_PORT) || 1025;
-
-console.log(`[${CURRENT_TIMESTAMP}] Email server configuration: ${emailHost}:${emailPort}`);
-
-// Options du transporteur adaptées pour tous les environnements
-const transportOptions = {
-  host: emailHost,
-  port: emailPort,
-  auth: {
-    user: process.env.EMAIL_USER || '',
-    pass: process.env.EMAIL_PASS || ''
-  },
-  secure: false,
-  tls: {
-    rejectUnauthorized: false
-  }
-};
-
-// Créer un transporteur pour l'envoi d'emails
-let transporter: any;
-
-try {
-  transporter = nodemailer.createTransport(transportOptions);
-  console.log(`[${CURRENT_TIMESTAMP}] Email transport created successfully`);
-} catch (error) {
-  console.error(`[${CURRENT_TIMESTAMP}] Failed to create email transport:`, error);
-  
-  // Fallback transport that just logs emails instead of sending
-  transporter = {
-    sendMail: async (options: any) => {
-      console.log('📧 EMAIL LOG (Transport Error):', options);
-      return { messageId: 'log-only-no-transport' };
-    }
-  };
-}
+const domain = process.env.MAILGUN_DOMAIN || '';
+const from = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
 
 /**
- * Helper function to get the appropriate base URL
- * This is the FIXED version that ensures no double ports
+ * Send an email using Mailgun
  */
-function getBaseUrl(): string {
-  // For GitHub Codespaces
-  if (process.env.CODESPACE_NAME) {
-    // The port is already included in the domain name structure
-    return `https://${process.env.CODESPACE_NAME}-3000.app.github.dev`;
-  }
-  
-  // For local development or other environments
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  
-  // Prevent double port in URL
-  // If we're using localhost and port is not in the URL, add it
-  if (baseUrl.includes('localhost') && !baseUrl.includes(':')) {
-    return `${baseUrl}:3000`;
-  }
-  
-  // Otherwise just use the base URL as is
-  return baseUrl;
-}
-
-/**
- * Helper function to get the appropriate MailHog URL
- */
-function getMailhogUrl(): string {
-  if (process.env.CODESPACE_NAME) {
-    return `https://${process.env.CODESPACE_NAME}-8025.app.github.dev`;
-  }
-  
-  return 'http://localhost:8025';
-}
-
-/**
- * Send an email
- */
-async function sendMail(options: {
-  to: string;
-  subject: string;
-  html: string;
-  from?: string;
-  text?: string;
-}): Promise<boolean> {
-  const { to, subject, html, text, from } = options;
-  
+async function sendEmail(
+  to: string,
+  subject: string,
+  text: string,
+  html: string
+): Promise<boolean> {
   try {
-    const fromAddress = from || process.env.EMAIL_FROM || 'dev@mythayun.com';
+    const currentTime = new Date().toISOString();
+    console.log(`[${currentTime}] Sending email to: ${to}`);
     
-    console.log(`[${CURRENT_TIMESTAMP}] Attempting to send email to ${to} via ${emailHost}:${emailPort}`);
-    
-    const result = await transporter.sendMail({
-      from: fromAddress,
+    const messageData: MailgunMessageData = {
+      from,
       to,
       subject,
+      text,
       html,
-      text: text || html.replace(/<[^>]*>?/gm, '') // Text fallback
-    });
-    
-    console.log(`[${CURRENT_TIMESTAMP}] Email sent to ${to}, ID: ${result.messageId}`);
-    console.log(`[${CURRENT_TIMESTAMP}] View email at: ${getMailhogUrl()}`);
+    };
+
+    const response = await mg.messages.create(domain, messageData);
+    console.log(`[${currentTime}] Email sent successfully. ID: ${response.id}`);
     
     return true;
   } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Error sending email:`, error);
+    console.error(`Error sending email: `, error);
     return false;
   }
 }
@@ -123,119 +53,76 @@ export async function sendVerificationEmail(
   name: string,
   token: string
 ): Promise<boolean> {
-  console.log(`[${CURRENT_TIMESTAMP}] Generating verification email for ${email}`);
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const verificationUrl = `${baseUrl}/verify-email?token=${token}`;
   
-  try {
-    const baseUrl = getBaseUrl();
-    
-    // Explicitly log the full verification URL for debugging
-    const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${token}`;
-    console.log(`[${CURRENT_TIMESTAMP}] Generated verification URL: ${verificationUrl}`);
-    
-    // Email HTML template with verification link
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #4f46e5;">Bienvenue sur MythaYun!</h2>
-        <p>Bonjour ${name},</p>
-        <p>Merci de vous être inscrit sur MythaYun. Pour activer votre compte, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" style="background-color: #4f46e5; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Vérifier mon email</a>
-        </div>
-        <p>Ou copiez et collez ce lien dans votre navigateur:</p>
-        <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-        <p>Ce lien expirera dans 24 heures.</p>
-        <p>Si vous n'avez pas créé de compte, veuillez ignorer cet email.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eaeaea;" />
-        <p style="color: #6b7280; font-size: 14px;">L'équipe MythaYun<br>© 2025 MythaYun. Tous droits réservés.</p>
-      </div>
-    `;
-    
-    return await sendMail({
-      to: email,
-      subject: "Vérifiez votre email - MythaYun",
-      html
-    });
-  } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Error preparing verification email:`, error);
-    return false;
-  }
+  const subject = 'Verify Your Email Address';
+  const text = `Hello ${name},\n\n` +
+    `Please verify your email address by clicking the link below:\n\n` +
+    `${verificationUrl}\n\n` +
+    `This link will expire in 24 hours.\n\n` +
+    `If you did not create an account, please ignore this email.\n\n` +
+    `Thank you,\n` +
+    `The Team`;
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Email Verification</h2>
+      <p>Hello ${name},</p>
+      <p>Please verify your email address by clicking the button below:</p>
+      <p style="text-align: center;">
+        <a href="${verificationUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+          Verify Email
+        </a>
+      </p>
+      <p>Or copy and paste this link in your browser:</p>
+      <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+      <p>This link will expire in 24 hours.</p>
+      <p>If you did not create an account, please ignore this email.</p>
+      <p>Thank you,<br>The Team</p>
+    </div>
+  `;
+  
+  return sendEmail(email, subject, text, html);
 }
 
 /**
- * Envoyer un email de réinitialisation de mot de passe
+ * Send password reset email
  */
 export async function sendPasswordResetEmail(
   email: string,
   name: string,
   token: string
 ): Promise<boolean> {
-  console.log(`[${CURRENT_TIMESTAMP}] Generating password reset email for ${email}`);
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const resetUrl = `${baseUrl}/reset-password?token=${token}`;
   
-  try {
-    const baseUrl = getBaseUrl();
-    const resetUrl = `${baseUrl}/api/auth/reset-password?token=${token}`;
-    
-    // Template HTML de base pour l'email de réinitialisation
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #4f46e5;">Réinitialisation de mot de passe</h2>
-        <p>Bonjour ${name},</p>
-        <p>Nous avons reçu une demande de réinitialisation de mot de passe pour votre compte MythaYun. Si vous n'avez pas fait cette demande, vous pouvez ignorer cet email.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" style="background-color: #4f46e5; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Réinitialiser mon mot de passe</a>
-        </div>
-        <p>Ou copiez et collez ce lien dans votre navigateur:</p>
-        <p><a href="${resetUrl}">${resetUrl}</a></p>
-        <p>Ce lien expirera dans 1 heure.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eaeaea;" />
-        <p style="color: #6b7280; font-size: 14px;">L'équipe MythaYun<br>© 2025 MythaYun. Tous droits réservés.</p>
-      </div>
-    `;
-    
-    return await sendMail({
-      to: email,
-      subject: "Réinitialisez votre mot de passe - MythaYun",
-      html
-    });
-  } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Error preparing reset email:`, error);
-    return false;
-  }
-}
-
-/**
- * Envoyer un email de bienvenue après vérification
- */
-export async function sendWelcomeEmail(
-  email: string,
-  name: string
-): Promise<boolean> {
-  console.log(`[${CURRENT_TIMESTAMP}] Generating welcome email for ${email}`);
+  const subject = 'Reset Your Password';
+  const text = `Hello ${name},\n\n` +
+    `You requested a password reset. Please click the link below to create a new password:\n\n` +
+    `${resetUrl}\n\n` +
+    `This link will expire in 1 hour.\n\n` +
+    `If you did not request a password reset, please ignore this email.\n\n` +
+    `Thank you,\n` +
+    `The Team`;
   
-  try {
-    const baseUrl = getBaseUrl();
-    
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #4f46e5;">Bienvenue sur MythaYun!</h2>
-        <p>Bonjour ${name},</p>
-        <p>Votre compte a été vérifié avec succès. Bienvenue dans la communauté MythaYun!</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${baseUrl}/dashboard" style="background-color: #4f46e5; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Accéder à mon tableau de bord</a>
-        </div>
-        <p>Nous espérons que vous apprécierez votre expérience sur notre plateforme.</p>
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eaeaea;" />
-        <p style="color: #6b7280; font-size: 14px;">L'équipe MythaYun<br>© 2025 MythaYun. Tous droits réservés.</p>
-      </div>
-    `;
-    
-    return await sendMail({
-      to: email,
-      subject: "Bienvenue sur MythaYun!",
-      html
-    });
-  } catch (error) {
-    console.error(`[${CURRENT_TIMESTAMP}] Error preparing welcome email:`, error);
-    return false;
-  }
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Password Reset</h2>
+      <p>Hello ${name},</p>
+      <p>You requested a password reset. Please click the button below to create a new password:</p>
+      <p style="text-align: center;">
+        <a href="${resetUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+          Reset Password
+        </a>
+      </p>
+      <p>Or copy and paste this link in your browser:</p>
+      <p><a href="${resetUrl}">${resetUrl}</a></p>
+      <p>This link will expire in 1 hour.</p>
+      <p>If you did not request a password reset, please ignore this email.</p>
+      <p>Thank you,<br>The Team</p>
+    </div>
+  `;
+  
+  return sendEmail(email, subject, text, html);
 }
