@@ -2,10 +2,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import apiFootballClient from '../api/footballApiClient';
-import { FootballMatch } from '../services/MatchesService';
+import MatchesService, { FootballMatch } from '../services/MatchesService';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-06-02 10:22:06";
+const CURRENT_TIMESTAMP = "2025-06-10 11:42:08";
 const CURRENT_USER = "Sdiabate1337";
 
 // Define types for our context
@@ -14,6 +14,7 @@ interface FootballDataContextProps {
   todayMatches: FootballMatch[];
   upcomingMatches: FootballMatch[];
   liveMatches: FootballMatch[];
+  next15DaysMatches: FootballMatch[]; // New property for 15-day matches
   isLoadingMatches: boolean;
   matchError: string | null;
   
@@ -31,6 +32,7 @@ interface FootballDataContextProps {
   
   // Actions
   fetchMatches: (params?: { leagueId?: string, days?: number }) => Promise<void>;
+  fetchNext15DaysMatches: (leagueId?: string) => Promise<void>; // New method
   fetchCompetitionMatches: (competitionCode: string) => Promise<FootballMatch[]>;
   toggleFavoriteLeague: (leagueId: string) => void;
   refreshData: () => Promise<void>;
@@ -51,6 +53,7 @@ export const FootballDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [todayMatches, setTodayMatches] = useState<FootballMatch[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<FootballMatch[]>([]);
   const [liveMatches, setLiveMatches] = useState<FootballMatch[]>([]);
+  const [next15DaysMatches, setNext15DaysMatches] = useState<FootballMatch[]>([]); // New state
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
   
@@ -94,7 +97,7 @@ export const FootballDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const clearCache = useCallback(() => {
     apiFootballClient.clearCache();
     console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} cleared cache`);
-    setLastUpdated(new Date().toISOString().replace('T', ' ').substring(0, 19));
+    setLastUpdated(CURRENT_TIMESTAMP);
   }, []);
   
   // Fetch leagues (competitions)
@@ -223,22 +226,56 @@ export const FootballDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, []);
   
-  // Fetch matches for a specific competition
+  // NEW METHOD: Fetch matches for next 15 days using MatchesService
+  const fetchNext15DaysMatches = useCallback(async (leagueId?: string) => {
+    setIsLoadingMatches(true);
+    setMatchError(null);
+    
+    try {
+      console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching matches for next 15 days${leagueId ? ` in league ${leagueId}` : ''}`);
+      
+      // Use the new MatchesService.getNext15DaysMatches method
+      let matches: FootballMatch[];
+      
+      if (leagueId && leagueId !== 'all') {
+        matches = await MatchesService.getNext15DaysMatches(leagueId);
+      } else {
+        matches = await MatchesService.getNext15DaysMatches();
+      }
+      
+      console.log(`[${CURRENT_TIMESTAMP}] Fetched ${matches.length} matches for next 15 days`);
+      setNext15DaysMatches(matches);
+      
+    } catch (error: any) {
+      console.error(`[${CURRENT_TIMESTAMP}] Error fetching 15-day matches:`, error);
+      setMatchError(`Failed to load 15-day matches: ${error.message}`);
+      
+      // Check for rate limiting
+      if (error.status === 429) {
+        setIsRateLimited(true);
+        setTimeout(() => setIsRateLimited(false), (error.retryAfter || 60) * 1000);
+      }
+    } finally {
+      setIsLoadingMatches(false);
+    }
+  }, []);
+  
+  // Fetch matches for a specific competition with 15-day range
   const fetchCompetitionMatches = useCallback(async (competitionCode: string): Promise<FootballMatch[]> => {
     setIsLoadingMatches(true);
     
     try {
       console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} is fetching matches for competition: ${competitionCode}`);
       
-      // Get dates for next 7 days
+      // Get dates for next 15 days
       const today = new Date(CURRENT_TIMESTAMP);
-      const nextWeek = new Date(today);
-      nextWeek.setDate(today.getDate() + 7);
+      const end15Days = new Date(today);
+      end15Days.setDate(today.getDate() + 14); // 15 days including today
       
       const dateFrom = today.toISOString().split('T')[0];
-      const dateTo = nextWeek.toISOString().split('T')[0];
+      const dateTo = end15Days.toISOString().split('T')[0];
       
-      // Use your API client
+      // Use the updated method with date range for competition matches
       const { data } = await apiFootballClient.getFixtures({
         league: competitionCode,
         from: dateFrom,
@@ -337,21 +374,24 @@ export const FootballDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     clearCache();
     await Promise.all([
       fetchLeagues(),
-      fetchMatches()
+      fetchMatches(),
+      fetchNext15DaysMatches() // Add the new 15-day matches fetch
     ]);
-  }, [clearCache, fetchLeagues, fetchMatches]);
+  }, [clearCache, fetchLeagues, fetchMatches, fetchNext15DaysMatches]);
   
   // Initialize data on first load
   useEffect(() => {
     fetchLeagues();
     fetchMatches();
-  }, [fetchLeagues, fetchMatches]);
+    fetchNext15DaysMatches(); // Add the new 15-day matches fetch
+  }, [fetchLeagues, fetchMatches, fetchNext15DaysMatches]);
   
   const contextValue = {
     // Matches
     todayMatches,
     upcomingMatches,
     liveMatches,
+    next15DaysMatches, // Add the new data
     isLoadingMatches,
     matchError,
     
@@ -363,6 +403,7 @@ export const FootballDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     // Actions
     fetchMatches,
+    fetchNext15DaysMatches, // Add the new method
     fetchCompetitionMatches,
     toggleFavoriteLeague,
     refreshData,

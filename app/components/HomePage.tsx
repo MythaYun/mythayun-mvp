@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import Link from "next/link";
+import Link from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { FiUser, FiLogOut, FiHome, FiClock, FiMap, FiVideo, FiInfo, FiTrendingUp, FiUsers, FiMenu } from "react-icons/fi";
+import { 
+  FiUser, FiLogOut, FiHome, FiClock, FiMap, FiVideo, 
+  FiInfo, FiTrendingUp, FiUsers, FiMenu, FiCheck,
+  FiCalendar, FiTarget, FiAward, FiHelpCircle, FiMessageCircle,
+  FiClock as FiClockIcon
+} from "react-icons/fi";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useModal } from "@/lib/contexts/ModalContext";
 import { useRouter } from "next/navigation";
 
-// Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-16 11:21:50"; // Updated timestamp
+// Current system information
+const CURRENT_TIMESTAMP = "2025-06-10 17:45:04"; // Updated timestamp
 const CURRENT_USER = "Sdiabate1337";
 
 export default function Home() {
-  // Use auth context - use authCheckComplete from context
+  // Use auth context
   const { 
     user, 
     isAuthenticated, 
@@ -21,7 +26,7 @@ export default function Home() {
     logout, 
     authError, 
     refreshUser,
-    authCheckComplete // Get from context instead of local state
+    authCheckComplete
   } = useAuth();
   
   const router = useRouter();
@@ -41,10 +46,10 @@ export default function Home() {
   // Add state to track parameter processing
   const [paramsProcessed, setParamsProcessed] = useState(false);
   
-  // FIX 1: Add a ref to track if a redirection is pending
+  // Track if a redirection is pending
   const redirectPendingRef = useRef<boolean>(false);
 
-  // FIX 2: Create a memoized function to process URL parameters only once
+  // Create a memoized function to process URL parameters only once
   const processUrlParameters = useCallback(async () => {
     // Skip if already processed
     if (paramsProcessed) return;
@@ -72,7 +77,7 @@ export default function Home() {
     if (authSuccess === 'true') {
       console.log(`[${CURRENT_TIMESTAMP}] Social authentication successful via ${provider || 'unknown provider'}`);
       
-      // FIX 3: Set the redirect pending flag to avoid multiple redirects
+      // Set the redirect pending flag to avoid multiple redirects
       redirectPendingRef.current = true;
       
       try {
@@ -113,14 +118,14 @@ export default function Home() {
       
       // Handle specific error types
       if (error.includes('google_auth_failed')) {
-        alert('Échec de la connexion Google. Veuillez réessayer.');
+        alert('Google login failed. Please try again.');
       } else if (error.includes('facebook_auth_failed')) {
-        alert('Échec de la connexion Facebook. Veuillez réessayer.');
+        alert('Facebook login failed. Please try again.');
       } else if (error.includes('email_verification')) {
         // Special handling for email verification errors
         openModal('login', { requiresVerification: true });
       } else {
-        alert(`Erreur d'authentification: ${error}`);
+        alert(`Authentication error: ${error}`);
       }
       
       // Clean up error parameter
@@ -174,7 +179,7 @@ export default function Home() {
     setParamsProcessed(true);
   }, [searchParams, openModal, paramsProcessed, refreshUser, authError]);
 
-  // FIX 4: Use a dedicated effect for authentication redirect
+  // Use a dedicated effect for authentication redirect
   useEffect(() => {
     // Only run this effect when auth state is confirmed and not loading
     if (!isLoading && authCheckComplete && !redirectPendingRef.current) {
@@ -193,7 +198,7 @@ export default function Home() {
     }
   }, [isAuthenticated, isLoading, user, router, authCheckComplete, openModal]);
 
-  // FIX 5: Process URL parameters after auth check
+  // Process URL parameters after auth check
   useEffect(() => {
     if (authCheckComplete && !paramsProcessed) {
       console.log(`[${CURRENT_TIMESTAMP}] Auth check complete, processing URL parameters`);
@@ -272,19 +277,19 @@ export default function Home() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Chargement...
+                  Loading...
                 </div>
               ) : isAuthenticated ? (
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-slate-300">
                     <FiUser className="text-indigo-500" />
-                    <span>Bienvenue, {user?.name || CURRENT_USER}</span>
+                    <span>Welcome, {user?.name || CURRENT_USER}</span>
                   </div>
                   <button
                     onClick={() => logout()}
                     className="flex items-center gap-2 px-4 py-2 rounded-full shadow-sm transition-all bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
                   >
-                    <FiLogOut className="text-slate-400" /> Déconnexion
+                    <FiLogOut className="text-slate-400" /> Logout
                   </button>
                 </div>
               ) : (
@@ -293,13 +298,13 @@ export default function Home() {
                     onClick={() => openModal('login')}
                     className="px-5 py-2 font-medium rounded-full shadow-sm transition-colors bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-slate-700"
                   >
-                    Connexion
+                    Login
                   </button>
                   <button
                     onClick={() => openModal('register')}
                     className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-500 text-white font-medium rounded-full hover:from-indigo-700 hover:to-violet-600 transition-colors shadow-sm"
                   >
-                    Inscription
+                    Sign Up
                   </button>
                 </div>
               )}
@@ -320,19 +325,19 @@ export default function Home() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Chargement...
+                Loading...
               </div>
             ) : isAuthenticated ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 p-2 text-slate-300">
                   <FiUser className="text-indigo-500" />
-                  <span>Bienvenue, {user?.name || CURRENT_USER}</span>
+                  <span>Welcome, {user?.name || CURRENT_USER}</span>
                 </div>
                 <button
                   onClick={() => logout()}
                   className="w-full flex items-center justify-center gap-2 p-3 rounded-xl shadow-sm transition-all bg-slate-700 text-slate-300 hover:bg-slate-600"
                 >
-                  <FiLogOut className="text-slate-400" /> Déconnexion
+                  <FiLogOut className="text-slate-400" /> Logout
                 </button>
               </div>
             ) : (
@@ -344,7 +349,7 @@ export default function Home() {
                   }}
                   className="w-full p-3 font-medium rounded-xl shadow-sm transition-colors bg-slate-700 text-indigo-400 hover:bg-slate-600"
                 >
-                  Connexion
+                  Login
                 </button>
                 <button
                   onClick={() => {
@@ -353,7 +358,7 @@ export default function Home() {
                   }}
                   className="w-full p-3 bg-gradient-to-r from-indigo-600 to-violet-500 text-white font-medium rounded-xl hover:from-indigo-700 hover:to-violet-600 transition-colors shadow-sm"
                 >
-                  Inscription
+                  Sign Up
                 </button>
               </div>
             )}
@@ -361,22 +366,28 @@ export default function Home() {
         )}
       </header>
 
-      {/* Hero Section - Mobile First */}
-      <section className="relative">
+      {/* Enhanced Hero Section */}
+      <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
         
-        <div className="px-4 py-16 sm:py-20 md:py-28 max-w-7xl mx-auto">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 -z-5 overflow-hidden">
+          <div className="absolute top-20 right-10 w-72 h-72 bg-indigo-600/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-10 left-10 w-80 h-80 bg-violet-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+        </div>
+        
+        <div className="px-4 py-16 sm:py-24 md:py-32 max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-10 md:gap-12">
             <div className="flex-1 space-y-6">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-center md:text-left text-white">
-                <span>L'expérience football </span>
+                <span>Football Experience </span>
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400">
-                  réinventée
+                  Reimagined
                 </span>
               </h1>
               
               <p className="text-lg sm:text-xl max-w-2xl text-center md:text-left text-slate-300">
-                Mythayun réunit scores en direct, guides de stades et actualités officielles pour une expérience football inégalée.
+                Mythayun brings together live scores, stadium guides, and official news for an unmatched football experience.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full sm:w-auto">
@@ -384,26 +395,26 @@ export default function Home() {
                   onClick={() => openModal('register')}
                   className="w-full sm:w-auto px-6 py-4 bg-gradient-to-r from-indigo-600 to-violet-500 text-white rounded-xl sm:rounded-full text-lg font-medium hover:from-indigo-700 hover:to-violet-600 shadow-lg shadow-indigo-900/20 hover:shadow-xl hover:shadow-indigo-900/30 transition-all"
                 >
-                  Rejoindre maintenant
+                  Join Now
                 </button>
                 <button 
                   onClick={() => {}}
                   className="w-full sm:w-auto px-6 py-4 border rounded-xl sm:rounded-full text-lg font-medium shadow-sm hover:shadow transition-all bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
                 >
-                  En savoir plus
+                  Learn More
                 </button>
               </div>
             </div>
             
-            {/* Abstract Football Illustration - Mobile Friendly */}
+            {/* Enhanced Football Illustration */}
             <div className="flex-1 flex justify-center w-full md:w-auto">
-              <div className="relative w-full max-w-xs sm:max-w-sm">
-                <div className="absolute -top-8 -right-8 w-32 h-32 sm:w-40 sm:h-40 bg-indigo-400/20 rounded-full blur-2xl"></div>
-                <div className="absolute -bottom-4 -left-4 w-20 h-20 sm:w-28 sm:h-28 bg-violet-400/20 rounded-full blur-2xl"></div>
+              <div className="relative w-full max-w-xs sm:max-w-sm md:max-w-md">
+                <div className="absolute -top-8 -right-8 w-40 h-40 sm:w-48 sm:h-48 bg-indigo-400/20 rounded-full blur-2xl"></div>
+                <div className="absolute -bottom-4 -left-4 w-28 h-28 sm:w-36 sm:h-36 bg-violet-400/20 rounded-full blur-2xl"></div>
                 
                 <div className="relative z-10 aspect-square flex items-center justify-center">
-                  {/* Football illustration for dark mode */}
-                  <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg relative overflow-hidden">
+                  {/* Football illustration with highlights */}
+                  <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 shadow-xl relative overflow-hidden animate-float">
                     <div className="absolute inset-2 rounded-full flex items-center justify-center bg-slate-800">
                       <div className="w-full h-full relative">
                         <div className="absolute inset-0 grid grid-cols-2">
@@ -411,7 +422,8 @@ export default function Home() {
                             <div key={i} className="aspect-square border border-slate-700"></div>
                           ))}
                         </div>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-full"></div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-full shadow-inner"></div>
+                        <div className="absolute inset-0 bg-white/5 rounded-full"></div>
                       </div>
                     </div>
                   </div>
@@ -422,6 +434,25 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Add some custom styles for animations */}
+      <style jsx global>{`
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+          100% { transform: translateY(0px); }
+        }
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out;
+        }
+      `}</style>
     </main>
   );
 }

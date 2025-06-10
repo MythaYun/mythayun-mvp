@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
 // Types de modaux disponibles
-export type ModalType = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'verifyEmail' | null;
+export type ModalType = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'verifyEmail' | 'joinOptions' | null;
 
 interface ModalContextType {
   activeModal: ModalType;

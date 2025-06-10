@@ -1,21 +1,27 @@
 'use strict';
 
-import formData from 'form-data';
-import Mailgun from 'mailgun.js';
-import type { MailgunMessageData } from 'mailgun.js';
+import nodemailer from 'nodemailer';
 
-// Initialize Mailgun
-const mailgun = new Mailgun(formData);
-const mg = mailgun.client({
-  username: 'api',
-  key: process.env.MAILGUN_API_KEY || '',
+// Current information for logging
+const CURRENT_TIMESTAMP = "2025-06-10 11:04:48";
+const CURRENT_USER = "Sdiabate1337";
+
+// Create a Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_SERVER_HOST,
+  port: parseInt(process.env.EMAIL_SERVER_PORT || '587'),
+  secure: process.env.EMAIL_SERVER_SECURE === 'true',
+  auth: {
+    user: process.env.EMAIL_SERVER_USER,
+    pass: process.env.EMAIL_SERVER_PASSWORD,
+  },
 });
 
-const domain = process.env.MAILGUN_DOMAIN || '';
+// Set default from address
 const from = process.env.EMAIL_FROM || 'noreply@yourdomain.com';
 
 /**
- * Send an email using Mailgun
+ * Send an email using Nodemailer
  */
 async function sendEmail(
   to: string,
@@ -24,10 +30,9 @@ async function sendEmail(
   html: string
 ): Promise<boolean> {
   try {
-    const currentTime = new Date().toISOString();
-    console.log(`[${currentTime}] Sending email to: ${to}`);
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Sending email to: ${to}`);
     
-    const messageData: MailgunMessageData = {
+    const messageData = {
       from,
       to,
       subject,
@@ -35,12 +40,12 @@ async function sendEmail(
       html,
     };
 
-    const response = await mg.messages.create(domain, messageData);
-    console.log(`[${currentTime}] Email sent successfully. ID: ${response.id}`);
+    const info = await transporter.sendMail(messageData);
+    console.log(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Email sent successfully. ID: ${info.messageId}`);
     
     return true;
   } catch (error) {
-    console.error(`Error sending email: `, error);
+    console.error(`[${CURRENT_TIMESTAMP}] ${CURRENT_USER} - Error sending email: `, error);
     return false;
   }
 }
@@ -126,3 +131,9 @@ export async function sendPasswordResetEmail(
   
   return sendEmail(email, subject, text, html);
 }
+
+// Export for direct imports
+export default {
+  sendVerificationEmail,
+  sendPasswordResetEmail
+};

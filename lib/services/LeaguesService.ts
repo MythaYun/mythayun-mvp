@@ -233,7 +233,7 @@ export default class LeaguesService {
         }));
         
         // Sort by goals scored (descending)
-        scorers.sort((a, b) => b.goals - a.goals);
+        scorers.sort((a: { goals: number; }, b: { goals: number; }) => b.goals - a.goals);
         
         // Return only the requested number of scorers
         return scorers.slice(0, limit);
