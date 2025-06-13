@@ -69,6 +69,11 @@ export default function RootLayout({
         
         {/* Prevent tap highlight on mobile */}
         <meta name="msapplication-tap-highlight" content="no" />
+
+         <link rel="icon" href="/icons/icon-192x192.png" sizes="192x192" />
+        <link rel="icon" href="/icons/icon-512x512.png" sizes="512x512" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="bg-slate-900 text-white overscroll-none">
         <AuthProvider>

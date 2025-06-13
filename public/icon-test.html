@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Test</title>
+  <style>
+    body { font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .icon { margin-bottom: 20px; }
+    .status { color: #666; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Icon Accessibility Test</h1>
+  <p>This page tests whether your PWA icons are accessible.</p>
+  
+  <div class="icon">
+    <h2>icon-192x192.png</h2>
+    <img src="/icons/icon-192x192.png" onerror="this.nextElementSibling.textContent='❌ Failed to load'; this.nextElementSibling.style.color='red'" onload="this.nextElementSibling.textContent='✅ Successfully loaded'; this.nextElementSibling.style.color='green'" />
+    <div class="status">Loading...</div>
+  </div>
+  
+  <div class="icon">
+    <h2>icon-512x512.png</h2>
+    <img src="/icons/icon-512x512.png" onerror="this.nextElementSibling.textContent='❌ Failed to load'; this.nextElementSibling.style.color='red'" onload="this.nextElementSibling.textContent='✅ Successfully loaded'; this.nextElementSibling.style.color='green'" />
+    <div class="status">Loading...</div>
+  </div>
+  
+  <div class="icon">
+    <h2>apple-touch-icon.png</h2>
+    <img src="/icons/apple-touch-icon.png" onerror="this.nextElementSibling.textContent='❌ Failed to load'; this.nextElementSibling.style.color='red'" onload="this.nextElementSibling.textContent='✅ Successfully loaded'; this.nextElementSibling.style.color='green'" />
+    <div class="status">Loading...</div>
+  </div>
+  
+  <script>
+    // Add fetch tests
+    async function testFetch(url) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          return `✅ Fetch succeeded: ${response.status}`;
+        } else {
+          return `❌ Fetch failed: ${response.status}`;
+        }
+      } catch (error) {
+        return `❌ Fetch error: ${error.message}`;
+      }
+    }
+    
+    // Run fetch tests and add results
+    async function runTests() {
+      const results = document.createElement('div');
+      results.innerHTML = '<h2>Fetch API Test Results</h2>';
+      
+      const urls = [
+        '/icons/icon-192x192.png',
+        '/icons/icon-512x512.png',
+        '/icons/apple-touch-icon.png'
+      ];
+      
+      for (const url of urls) {
+        const result = await testFetch(url);
+        const div = document.createElement('div');
+        div.textContent = `${url}: ${result}`;
+        div.style.color = result.includes('✅') ? 'green' : 'red';
+        results.appendChild(div);
+      }
+      
+      document.body.appendChild(results);
+    }
+    
+    runTests();
+  </script>
+</body>
+</html>
