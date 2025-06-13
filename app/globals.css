@@ -270,3 +270,14 @@ body {
   text-align: center;
   margin-top: 10px;
 }
+
+/* Add to your existing globals.css */
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s infinite ease-in-out;
+}
