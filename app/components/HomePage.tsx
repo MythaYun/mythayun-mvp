@@ -12,6 +12,8 @@ import {
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useModal } from "@/lib/contexts/ModalContext";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/lib/contexts/ToastContext";
+import AppFooter from './AppFooter';
 
 // Current system information
 const CURRENT_TIMESTAMP = "2025-06-10 17:45:04"; // Updated timestamp
@@ -430,6 +432,8 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+             <AppFooter />
           </div>
         </div>
       </section>

@@ -12,7 +12,7 @@ import PwaDebugger from './components/PwaDebugger';
 
 /**
  * Root layout configuration
- * Last updated: 2025-06-13 01:50:30
+ * Last updated: 2025-06-13 15:54:25
  * Updated by: Sdiabate1337
  */
 
@@ -70,18 +70,15 @@ export default function RootLayout({
         {/* Prevent tap highlight on mobile */}
         <meta name="msapplication-tap-highlight" content="no" />
 
-         <link rel="icon" href="/icons/icon-192x192.png" sizes="192x192" />
+        <link rel="icon" href="/icons/icon-192x192.png" sizes="192x192" />
         <link rel="icon" href="/icons/icon-512x512.png" sizes="512x512" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="bg-slate-900 text-white overscroll-none">
         <AuthProvider>
           <ModalProvider>
             <ToastProvider>
-              {/* Add FootballDataProvider around Suspense */}
               <FootballDataProvider>
-                {/* Wrap children in Suspense boundary */}
                 <Suspense fallback={<LoadingFallback />}>
                   {children}
                 </Suspense>

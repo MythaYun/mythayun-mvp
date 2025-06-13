@@ -2,8 +2,20 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Current system information
-const CURRENT_TIMESTAMP = "2025-05-14 03:53:13";
+const CURRENT_TIMESTAMP = "2025-06-13 12:53:21";
 const CURRENT_USER = "Sdiabate1337";
+
+// List of paths that should be publicly accessible (PWA assets)
+const PUBLIC_PATHS = [
+  '/icons/',
+  '/screenshots/',
+  '/manifest.json',
+  '/sw.js',
+  '/favicon.ico',
+  '/workbox-',
+  '/_next/image',
+  '/_next/static'
+];
 
 // Define protected paths
 const PROTECTED_PATHS = [
@@ -29,6 +41,14 @@ const AUTH_PATHS = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Allow public access to PWA assets
+  for (const publicPath of PUBLIC_PATHS) {
+    if (pathname.startsWith(publicPath)) {
+      console.log(`[${CURRENT_TIMESTAMP}] [${CURRENT_USER}] Allowing public access to: ${pathname}`);
+      return NextResponse.next();
+    }
+  }
+  
   // Skip middleware for API routes to prevent conflicts
   if (pathname.startsWith('/api/')) {
     return NextResponse.next();
@@ -48,7 +68,6 @@ export function middleware(request: NextRequest) {
       !ADMIN_PATHS.some(path => pathname.startsWith(path))) {
     return NextResponse.next();
   }
-
   
   // For now, just let the page handle token verification
   // This avoids Edge Runtime compatibility issues
@@ -69,5 +88,9 @@ export const config = {
     '/profile/:path*',
     '/settings/:path*',
     '/admin/:path*',
+    
+    // Include all paths but explicitly exclude public assets
+    // This ensures the middleware runs for all routes so we can check PUBLIC_PATHS
+    '/((?!_next/static|_next/image|favicon.ico|icons/|screenshots/|manifest.json|sw.js|workbox-).*)'
   ]
 };
