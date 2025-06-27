@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FiAlertCircle, FiEye, FiEyeOff, FiCheck, FiX } from 'react-icons/fi';
-import { resetPassword } from '@/lib/auth/email-actions';
+import { resetPassword } from '../../../../lib/auth/email-actions';
 
 interface ResetPasswordFormProps {
   token: string;

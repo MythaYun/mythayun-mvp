@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { connectToDatabase } from "@/lib/db/mongodb";
-import User from "@/lib/models/User";
-import { verifyToken } from "@/lib/auth/jwt"; // Use your actual verifyToken function
+import { connectToDatabase } from "../../../../lib/db/mongodb";
+import User from "../../../../lib/models/User";
+import { verifyToken } from "../../../../lib/auth/jwt"; // Use your actual verifyToken function
 
 export async function PUT(request: NextRequest) {
   const timestamp = new Date().toISOString();

@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
-import { AuthProvider } from '@/lib/contexts/AuthContext';
-import { ModalProvider } from '@/lib/contexts/ModalContext';
-import { FootballDataProvider } from '@/lib/contexts/FootballDataContext';
-import { ToastProvider } from '@/lib/contexts/ToastContext';
+import { AuthProvider } from '../lib/contexts/AuthContext';
+import { ModalProvider } from '../lib/contexts/ModalContext';
+import { FootballDataProvider } from '../lib/contexts/FootballDataContext';
+import { ToastProvider } from '../lib/contexts/ToastContext';
 import AuthModals from './components/auth/AuthModals';
 import PushNotificationSetup from './components/PushNotificationSetup';
 import GlobalStyles from './components/GlobalStyles';

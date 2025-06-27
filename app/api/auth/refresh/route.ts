@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sessionUtils } from '@/lib/auth/session';
+import { sessionUtils } from '../../../../lib/auth/session';
 
 export async function GET(request: NextRequest) {
   const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/dashboard';

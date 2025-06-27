@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import Modal from '../../ui/Modal';
 import VerifyEmailForm from '../forms/VerifyEmailResult';
-import { useModal } from '@/lib/contexts/ModalContext';
-import { verifyEmail } from '@/lib/auth/email-actions';
+import { useModal } from '../../../../lib/contexts/ModalContext';
+import { verifyEmail } from '../../../../lib/auth/email-actions';
 import { FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 interface VerifyEmailModalProps {

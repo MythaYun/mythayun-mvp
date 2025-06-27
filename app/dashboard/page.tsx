@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '../../lib/contexts/AuthContext';
 import OnboardingWizard from '../components/onboarding/OnboardingWizard'; 
 import SettingsTab from './SettingsTab';
 import FavoritesTab from './FavoritesTab'; 

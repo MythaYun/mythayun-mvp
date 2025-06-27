@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '../../lib/contexts/AuthContext';
 import { 
   FiEdit2, FiSave, FiX, FiAlertCircle, FiCheckCircle, FiUser, 
   FiMail, FiLock, FiSettings, FiTrash2, FiShield, FiBell, 

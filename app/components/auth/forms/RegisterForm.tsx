@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { FiAlertCircle, FiEye, FiEyeOff, FiCheck, FiX } from 'react-icons/fi';
-import { registerAction } from '@/lib/auth/auth-actions';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { registerAction } from '../../../../lib/auth/auth-actions';
+import { useAuth } from '../../../../lib/contexts/AuthContext';
 
 // Update the onSuccess interface to receive email and message
 interface RegisterFormProps {

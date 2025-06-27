@@ -3,7 +3,7 @@
 import React from 'react';
 import Modal from '../../ui/Modal';
 import ResetPasswordForm from '../forms/ResetPasswordForm';
-import { useModal } from '@/lib/contexts/ModalContext';
+import { useModal } from '../../../../lib/contexts/ModalContext';
 
 interface ResetPasswordModalProps {
   token: string;

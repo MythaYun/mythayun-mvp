@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sessionUtils } from '@/lib/auth/session';
+import { sessionUtils } from '../../../../lib/auth/session';
 
 // Current system information
 const CURRENT_TIMESTAMP = "2025-05-13 23:06:42";

@@ -8,9 +8,9 @@ import {
   FiArrowLeft, FiShare2, FiRefreshCw, FiStar,
   FiCheckCircle, FiX, FiAlertTriangle
 } from 'react-icons/fi';
-import { useFootballData } from '@/lib/contexts/FootballDataContext';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import MatchesService, { FootballMatch, MatchDetails, MatchStatus } from '@/lib/services/MatchesService';
+import { useFootballData } from '../../../lib/contexts/FootballDataContext';
+import { useAuth } from '../../../lib/contexts/AuthContext';
+import MatchesService, { FootballMatch, MatchDetails, MatchStatus } from '../../../lib/services/MatchesService';
 import type { ReactNode } from 'react';
 
 // Updated constants with the latest values

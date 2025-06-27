@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyEmail } from '@/lib/auth/email-actions';
+import { verifyEmail } from '../../../../lib/auth/email-actions';
 
 export async function GET(request: NextRequest) {
   const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);

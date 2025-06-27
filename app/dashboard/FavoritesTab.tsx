@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import { useFootballData } from '@/lib/contexts/FootballDataContext'; // Using real context instead of debug hook
-import { FootballMatch } from '@/lib/services/MatchesService';
+import { useAuth } from '../../lib/contexts/AuthContext';
+import { useFootballData } from '../../lib/contexts/FootballDataContext'; // Using real context instead of debug hook
+import { FootballMatch } from '../../lib/services/MatchesService';
 import { 
   FiHeart, FiSearch, FiFilter, FiTrash2, FiPlus, FiCalendar, 
   FiAlertCircle, FiX, FiCheckCircle, FiInfo, FiBell, FiShare2, FiStar,

@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import Modal from '../../ui/Modal';
 import LoginForm from '../forms/LoginForm';
-import { useModal } from '@/lib/contexts/ModalContext';
+import { useModal } from '../../../../lib/contexts/ModalContext'
 
 // Current system information
 const CURRENT_TIMESTAMP = "2025-05-16 11:27:47";

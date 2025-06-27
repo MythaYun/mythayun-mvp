@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendVerificationEmail } from '@/lib/utils/email';
+import { sendVerificationEmail } from '../../../lib/utils/email';
 
 export async function GET(request: NextRequest) {
   const testEmail = 'test@example.com';

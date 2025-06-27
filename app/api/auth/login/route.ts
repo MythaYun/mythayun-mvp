@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loginAction } from '@/lib/auth/auth-actions'; // Updated import path
-import { rateLimit } from '@/lib/utils/rate-limit';
-import { JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from '@/lib/auth/jwt-types';
+import { loginAction } from '../../../../lib/auth/auth-actions'; // Updated import path
+import { rateLimit } from '../../../../lib/utils/rate-limit';
+import { JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from '../../../../lib/auth/jwt-types';
 
 // Configure rate limiter: 5 login attempts per minute per IP
 const loginLimiter = rateLimit({

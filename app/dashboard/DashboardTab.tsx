@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import { useFootballData } from '@/lib/contexts/FootballDataContext';
-import { FootballMatch } from '@/lib/services/MatchesService';
+import { useAuth } from '../../lib/contexts/AuthContext';
+import { useFootballData } from '../../lib/contexts/FootballDataContext';
+import { FootballMatch } from '../../lib/services/MatchesService';
 import { 
   FiCalendar, FiClock, FiRefreshCw, FiTrendingUp, FiActivity,
   FiUsers, FiMessageCircle, FiHeart, FiAlertTriangle, FiMap,

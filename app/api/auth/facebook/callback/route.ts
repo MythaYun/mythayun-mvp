@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleFacebookCallback } from '@/lib/auth/social-auth';
-import { JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from '@/lib/auth/jwt-types';
+import { handleFacebookCallback } from '../../../../../lib/auth/social-auth';
+import { JWT_ACCESS_EXPIRY_SECONDS, JWT_REFRESH_EXPIRY_SECONDS } from '../../../../../lib/auth/jwt-types';
 
 export async function GET(request: NextRequest) {
   try {

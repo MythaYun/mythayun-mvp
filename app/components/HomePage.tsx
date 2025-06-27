@@ -12,7 +12,7 @@ import {
 import { useAuth } from "../../lib/contexts/AuthContext";
 import { useModal } from "../../lib/contexts/ModalContext";
 import { useRouter } from "next/navigation";
-import { useToast } from "@/lib/contexts/ToastContext";
+import { useToast } from "../../lib/contexts/ToastContext";
 import AppFooter from './AppFooter';
 
 // Current system information

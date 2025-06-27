@@ -6,7 +6,7 @@ import {
   FiShield, FiStar, FiTrendingUp, FiInfo, FiHeart, FiUser,
   FiCalendar, FiAlertTriangle
 } from 'react-icons/fi';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '../../../lib/contexts/AuthContext';
 
 // Current system info
 const CURRENT_TIMESTAMP = "2025-06-03 20:29:34";

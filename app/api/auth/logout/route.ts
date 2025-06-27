@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logoutAction } from '@/lib/auth/auth-actions';
+import { logoutAction } from '../../../../lib/auth/auth-actions';
 
 export async function POST(request: NextRequest) {
   try {

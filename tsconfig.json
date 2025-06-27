@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "types": ["node", "jest"],
+    "moduleResolution": "node",
     "baseUrl": "./",
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -10,7 +11,6 @@
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",

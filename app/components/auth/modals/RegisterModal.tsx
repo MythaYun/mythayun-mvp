@@ -5,7 +5,7 @@ import { FaGoogle, FaFacebook } from 'react-icons/fa';
 import Modal from '../../ui/Modal';
 import RegisterForm from '../forms/RegisterForm';
 import RegistrationSuccess from '../RegistrationSuccess';
-import { useModal } from '@/lib/contexts/ModalContext';
+import { useModal } from '../../../../lib/contexts/ModalContext';
 
 // Current timestamp and user for logging
 const CURRENT_TIMESTAMP = "2025-06-10 18:20:46"; // Updated timestamp

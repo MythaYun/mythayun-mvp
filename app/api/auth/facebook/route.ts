@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFacebookOAuthURL } from '@/lib/auth/social-auth';
+import { getFacebookOAuthURL } from '../../../../lib/auth/social-auth';
 
 export async function GET(request: NextRequest) {
   try {

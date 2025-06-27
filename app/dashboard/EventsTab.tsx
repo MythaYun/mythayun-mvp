@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import { useFootballData } from '@/lib/contexts/FootballDataContext';
-import { FootballMatch } from '@/lib/services/MatchesService';
-import MatchesService from '@/lib/services/MatchesService';
+import { useAuth } from '../../lib/contexts/AuthContext';
+import { useFootballData } from '../../lib/contexts/FootballDataContext';
+import { FootballMatch } from '../../lib/services/MatchesService';
+import MatchesService from '../../lib/services/MatchesService';
 import { 
   FiCalendar, FiFilter, FiClock, FiMap, FiRefreshCw, 
   FiChevronDown, FiAlertCircle, FiBell, FiBellOff, 

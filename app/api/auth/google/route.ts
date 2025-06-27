@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGoogleOAuthURL } from '@/lib/auth/social-auth';
+import { getGoogleOAuthURL } from '../../../../lib/auth/social-auth';
 
 // Current system information
 const CURRENT_TIMESTAMP = "2025-05-14 02:19:04";

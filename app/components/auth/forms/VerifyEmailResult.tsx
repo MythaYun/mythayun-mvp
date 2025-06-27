@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FiAlertCircle } from 'react-icons/fi';
-import { requestVerificationEmail } from '@/lib/auth/email-actions';
+import { requestVerificationEmail } from '../../../../lib/auth/email-actions';
 
 // Informations système actuelles
 const CURRENT_TIMESTAMP = "2025-05-08 12:25:32";

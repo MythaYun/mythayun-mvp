@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db/mongodb';
-import User from '@/lib/models/User';
-import { verifyToken } from '@/lib/auth/jwt';
+import { connectToDatabase } from '../../../../lib/db/mongodb';
+import User from '../../../../lib/models/User';
+import { verifyToken } from '../../../../lib/auth/jwt';
 
 export async function PUT(request: NextRequest) {
   try {
