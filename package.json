@@ -19,7 +19,8 @@
     "test:e2e": "playwright test",
     "test:api": "jest --testMatch='**/*.api.test.ts' --testEnvironment=node",
     "db:seed": "ts-node scripts/seed-database.ts",
-    "email:test": "curl -X POST http://localhost:3000/api/email/test"
+    "email:test": "curl -X POST http://localhost:3000/api/email/test",
+    "vercel-build": "next build"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
