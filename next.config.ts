@@ -7,6 +7,8 @@
  * Manual PWA implementation that doesn't rely on next-pwa
  */
 
+import path from "path";
+
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
@@ -72,6 +74,11 @@ const nextConfig = {
       ],
     },
   ],
+
+  webpack: (config: { resolve: { alias: { [x: string]: any; }; }; }) => {
+    config.resolve.alias['@'] = path.resolve(__dirname);
+    return config;
+  },
 };
 
 module.exports = nextConfig;
