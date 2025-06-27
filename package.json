@@ -2,6 +2,7 @@
   "name": "mythayun-mvp",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -18,8 +19,7 @@
     "test:e2e": "playwright test",
     "test:api": "jest --testMatch='**/*.api.test.ts' --testEnvironment=node",
     "db:seed": "ts-node scripts/seed-database.ts",
-    "email:test": "curl -X POST http://localhost:3000/api/email/test",
-    "vercel-build": "next build"
+    "email:test": "curl -X POST http://localhost:3000/api/email/test"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
