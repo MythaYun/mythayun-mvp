@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { FiX } from 'react-icons/fi';
-import { useModal } from '@/lib/contexts/ModalContext';
+import { useModal } from '../../../lib/contexts/ModalContext';
 import LoginForm from './forms/LoginForm';
 import RegisterModal from './modals/RegisterModal';
 import ForgotPasswordForm from './forms/ForgotPasswordForm';
