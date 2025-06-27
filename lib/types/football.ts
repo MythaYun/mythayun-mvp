@@ -1,3 +1,5 @@
+import { ReactNode } from "react";
+
 // Common types for football data
 export interface Competition {
   id: number;

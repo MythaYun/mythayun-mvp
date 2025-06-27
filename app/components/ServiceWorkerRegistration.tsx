@@ -6,8 +6,8 @@ export default function ServiceWorkerRegistration() {
   useEffect(() => {
     // Define timestamp for consistent logging
     const timestamp = '2025-06-13 02:32:33';
-    const debug = (msg) => console.log(`[${timestamp}] [Sdiabate1337] ${msg}`);
-    const error = (msg, err) => console.error(`[${timestamp}] [Sdiabate1337] ${msg}`, err);
+    const debug = (msg: string) => console.log(`[${timestamp}] [Sdiabate1337] ${msg}`);
+    const error = (msg: string, err: undefined) => console.error(`[${timestamp}] [Sdiabate1337] ${msg}`, err);
     
     // Check immediately rather than waiting for load event
     // The load event might have already fired if component mounts late
@@ -23,7 +23,7 @@ export default function ServiceWorkerRegistration() {
       
       const isSecure = window.location.protocol === 'https:' || isLocalhost;
       if (!isSecure) {
-        error('Service Worker registration failed: HTTPS required except on localhost');
+        error('Service Worker registration failed: HTTPS required except on localhost', undefined);
         return;
       }
       
@@ -71,9 +71,9 @@ export default function ServiceWorkerRegistration() {
           
           // Special handling for common errors
           if (err.message.includes('404')) {
-            error('Service worker file (sw.js) not found. Make sure it exists in the public directory.');
+            error('Service worker file (sw.js) not found. Make sure it exists in the public directory.', undefined);
           } else if (err.message.includes('SSL')) {
-            error('Service worker registration requires HTTPS (except on localhost).');
+            error('Service worker registration requires HTTPS (except on localhost).', undefined);
           }
         });
     } else {

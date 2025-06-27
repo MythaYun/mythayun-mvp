@@ -35,16 +35,6 @@ export async function connectToDatabase() {
       socketTimeoutMS: 45000, // 45 seconds
     };
 
-    cached.promise = mongoose
-      .connect(MONGODB_URI, opts)
-      .then(mongoose => {
-        console.log(`MongoDB connected successfully at ${new Date('2025-05-02T14:26:17').toISOString()}`);
-        return mongoose;
-      })
-      .catch(error => {
-        console.error('MongoDB connection error:', error);
-        throw error;
-      });
   }
 
   try {

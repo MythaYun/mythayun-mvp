@@ -1257,12 +1257,7 @@ export default function SettingsTab() {
             <span>Delete My Account</span>
           </button>
         </div>
-        
-        {/* Footer with current user info */}
-        <div className="pt-4 mt-4 border-t border-slate-700/50 text-xs text-slate-500 flex justify-between">
-          <div>User ID: {user?.id || 'unknown'}</div>
-          <div>Last login: {new Date(CURRENT_TIMESTAMP).toLocaleString()}</div>
-        </div>
+
       </div>
       
       {/* Help button */}

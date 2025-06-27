@@ -59,8 +59,7 @@ export default function LoginModal({
         onForgotPasswordClick={goToForgotPassword}
         verified={verified || urlVerified}
         requiresVerification={requiresVerification}
-        passwordReset={passwordReset}
-      />
+        passwordReset={passwordReset} passwordResetSuccess={false}      />
     </Modal>
   );
 }

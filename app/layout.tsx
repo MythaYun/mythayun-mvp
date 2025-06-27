@@ -8,7 +8,6 @@ import PushNotificationSetup from './components/PushNotificationSetup';
 import GlobalStyles from './components/GlobalStyles';
 import ServiceWorkerRegistration from './components/ServiceWorkerRegistration';
 import './globals.css';
-import PwaDebugger from './components/PwaDebugger';
 
 /**
  * Root layout configuration
@@ -90,7 +89,6 @@ export default function RootLayout({
           </ModalProvider>
         </AuthProvider>
         <ServiceWorkerRegistration />
-        {process.env.NODE_ENV === 'development' && <PwaDebugger />}
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["node", "jest", "testing-library__jest-dom"],
+    "types": ["node", "jest"],
     "baseUrl": "./",
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -29,6 +29,6 @@
       "@/pages/*": ["pages/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "jest.setup.js", "styles/**/*.css", "types/**/*.d.ts", "app/viewport.js"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "jest.setup.js", "styles/**/*.css", "types/**/*.d.ts", "app/viewport.js", "next.config.cjs"],
   "exclude": ["node_modules"]
 }

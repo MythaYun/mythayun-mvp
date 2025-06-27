@@ -11,6 +11,8 @@ interface LoginFormProps {
   verified?: boolean;
   requiresVerification?: boolean;
   passwordReset?: boolean;
+  verificationSuccess?: () => void;
+  passwordResetSuccess: boolean
 }
 
 // Current system information
@@ -24,6 +26,8 @@ export default function LoginForm({
   verified = false,
   requiresVerification = false,
   passwordReset = false,
+  passwordResetSuccess,
+  verificationSuccess
 }: LoginFormProps) {
   // State management
   const [email, setEmail] = useState('');
