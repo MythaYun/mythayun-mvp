@@ -8,7 +8,7 @@ import RegisterModal from './modals/RegisterModal';
 import ForgotPasswordForm from './forms/ForgotPasswordForm';
 import ResetPasswordForm from './forms/ResetPasswordForm';
 import VerifyEmailForm from './forms/VerifyEmailResult';
-import { ModalType } from '@/lib/contexts/ModalContext';
+import { ModalType } from '../../../lib/contexts/ModalContext';
 
 // Informations système actuelles
 const CURRENT_TIMESTAMP = "2025-05-13 18:55:19";

@@ -9,8 +9,8 @@ import {
   FiCalendar, FiTarget, FiAward, FiHelpCircle, FiMessageCircle,
   FiClock as FiClockIcon
 } from "react-icons/fi";
-import { useAuth } from "@/lib/contexts/AuthContext";
-import { useModal } from "@/lib/contexts/ModalContext";
+import { useAuth } from "../../lib/contexts/AuthContext";
+import { useModal } from "../../lib/contexts/ModalContext";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/contexts/ToastContext";
 import AppFooter from './AppFooter';

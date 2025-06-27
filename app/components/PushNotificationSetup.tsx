@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { FiBell, FiBellOff } from 'react-icons/fi';
-import { useToast } from '@/lib/contexts/ToastContext';
+import { useToast } from '../../lib/contexts/ToastContext';
 
 // Current system information
 const CURRENT_TIMESTAMP = "2025-06-12 15:05:16";

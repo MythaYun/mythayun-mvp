@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { FaGoogle, FaFacebook, FaEnvelope, FaLock } from 'react-icons/fa';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth } from '../../../../lib/contexts/AuthContext';
 
 interface LoginFormProps {
   onSuccess?: () => void;
