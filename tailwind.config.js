@@ -1,21 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
-    content: [
-    './app/**/*.{js,ts,jsx,tsx}',
-    './pages/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}',
-    './styles/**/*.{css}',
-  ],
+  content: ['./app/**/*.{js,ts,jsx,tsx}', './components/**/*.{js,ts,jsx,tsx}'],
   theme: {
-    extend: {
-      animation: {
-        'fadeIn': 'fadeIn 0.3s ease-out forwards',
-        'slideUp': 'slideUp 0.3s ease-out forwards',
-      },
-    },
+    extend: {},
   },
-  plugins: [
-    require('@tailwindcss/forms'),
-  ],
-}
+  plugins: [require('@tailwindcss/forms')],
+};
