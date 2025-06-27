@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "node scripts/prebuild.js && next build",
     "start": "next start",
     "lint": "next lint --no-interactive",
     "test": "jest",
@@ -20,7 +19,8 @@
     "test:e2e": "playwright test",
     "test:api": "jest --testMatch='**/*.api.test.ts' --testEnvironment=node",
     "db:seed": "ts-node scripts/seed-database.ts",
-    "email:test": "curl -X POST http://localhost:3000/api/email/test"
+    "email:test": "curl -X POST http://localhost:3000/api/email/test",
+    "vercel-build": "node scripts/prebuild.cjs && next build"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
