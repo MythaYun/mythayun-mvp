@@ -1,48 +1,91 @@
-const nextJest = require('next/jest');
+const nextJest = require('next/jest')
 
-// Providing the path to your Next.js app
-const createJestConfig = nextJest({ dir: './' });
+const createJestConfig = nextJest({
+  // Provide the path to your Next.js app to load next.config.js and .env files
+  dir: './',
+})
 
-// Custom Jest configuration
+// Add any custom config to be passed to Jest
 const customJestConfig = {
-  testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  
+  // Module name mapping for aliases and static assets
   moduleNameMapper: {
-    '^@/app/(.*)$': '<rootDir>/app/$1',
+    // Handle module aliases (this will be automatically configured for you based on your tsconfig.json paths)
+    '^@/(.*)$': '<rootDir>/$1',
+    '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
-    '^@/styles/(.*)$': '<rootDir>/styles/$1',
-    '^@/public/(.*)$': '<rootDir>/public/$1',
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy'
+    '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
+    '^@/utils/(.*)$': '<rootDir>/utils/$1',
+    '^@/types/(.*)$': '<rootDir>/types/$1',
+    
+    // Handle static assets
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': '<rootDir>/__mocks__/fileMock.js',
   },
+  
+  // Test environment
+  testEnvironment: 'jest-environment-jsdom',
+  
+  // Test patterns
+  testMatch: [
+    '**/__tests__/**/*.(ts|tsx|js)',
+    '**/*.(test|spec).(ts|tsx|js)',
+  ],
+  
+  // Files to ignore
   testPathIgnorePatterns: [
-    '<rootDir>/node_modules/',
     '<rootDir>/.next/',
-    '<rootDir>/e2e/'
+    '<rootDir>/node_modules/',
+    '<rootDir>/build/',
+    '<rootDir>/dist/',
   ],
-  collectCoverageFrom: [
-    'app/components/**/*.{js,jsx,ts,tsx}',
-    '!**/*.d.ts',
-    '!**/*.stories.{js,jsx,ts,tsx}'
-  ],
-  // CI-friendly coverage settings
-  coverageThreshold: process.env.CI 
-    ? undefined  // Disable thresholds in CI for now
-    : {
-        global: {
-          branches: 50,
-          functions: 50,
-          lines: 50,
-          statements: 50
-        }
-      },
+  
+  // Transform files
   transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['ts-jest']
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: 'tsconfig.json',
+    }],
   },
-  reporters: [
-    'default',
-    process.env.CI && ['jest-junit', { outputDirectory: 'reports', outputName: 'jest-junit.xml' }]
-  ].filter(Boolean),
-  maxWorkers: process.env.CI ? 2 : '50%'
-};
+  
+  // Coverage settings
+  collectCoverageFrom: [
+    'app/**/*.{ts,tsx}',
+    'components/**/*.{ts,tsx}',
+    'lib/**/*.{ts,tsx}',
+    'hooks/**/*.{ts,tsx}',
+    'utils/**/*.{ts,tsx}',
+    '!**/*.d.ts',
+    '!**/node_modules/**',
+    '!**/.next/**',
+  ],
+  
+  // Coverage thresholds (optional)
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
+  
+  // Additional Jest options
+  verbose: true,
+  clearMocks: true,
+  restoreMocks: true,
+  
+  // Handle ES modules
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
+  
+  // Global setup for tests
+  globals: {
+    'ts-jest': {
+      useESM: true,
+      tsconfig: 'tsconfig.json',
+    },
+  },
+}
 
-module.exports = createJestConfig(customJestConfig);
+// createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
+module.exports = createJestConfig(customJestConfig)

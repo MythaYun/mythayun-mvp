@@ -2,19 +2,19 @@
 
 import { redirect } from 'next/navigation';
 import { connectToDatabase } from '../db/mongodb';
-import User, { IUser } from '../models/User';
+import { User, UserDocument, IUser } from '../models/User';
 import { jwtUtils } from './jwt';
 import { sessionUtils } from './session';
 import mongoose from 'mongoose';
 import { sendVerificationEmail } from '../utils/email';
 
 // Informations système actuelles
-const CURRENT_TIMESTAMP = "2025-05-07 12:35:03";
+const CURRENT_TIMESTAMP = "2025-07-04 15:02:45";
 const CURRENT_USER = "Sdiabate1337";
 
 // Types de réponses pour les actions
 type AuthResult = {
-  accessToken?: string;  // Make these optional with ?
+  accessToken?: string;
   refreshToken?: string;
   success: boolean;
   message?: string;
@@ -32,11 +32,9 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    // Current timestamp for logging
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] Processing login for: ${email}`);
 
-    // Validation simple
     if (!email || !password) {
       return { 
         success: false, 
@@ -46,51 +44,42 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
 
     await connectToDatabase();
 
-    // Rechercher l'utilisateur et inclure le mot de passe pour la vérification
-    // Include all needed fields for onboarding
-    const user = await User.findOne({ email }).select('+password');
+    // Utilise une assertion de type pour éviter les erreurs TypeScript
+    const user = await User.findOne({ email }).select('+password') as unknown as UserDocument | null;
     
-    // Si l'utilisateur n'existe pas
     if (!user) {
-      // Délai pour limiter le brute-force
       await new Promise((r) => setTimeout(r, 1000));
       return { 
         success: false, 
-        message: 'Email ou mot de passe incorrect'  // Message générique pour ne pas indiquer l'existence du compte
+        message: 'Email ou mot de passe incorrect'
       };
     }
 
-    // Vérifier si le compte est vérifié
     if (!user.isVerified) {
       return { 
         success: false,
-        requiresEmailVerification: true, // Add this flag for the frontend
+        requiresEmailVerification: true,
         message: 'Veuillez vérifier votre adresse email avant de vous connecter' 
       };
     }
 
-    // Vérifier si le compte est verrouillé
-    if (user.isAccountLocked && user.isAccountLocked()) {
+    if (user.isAccountLocked()) {
       return { 
         success: false, 
         message: 'Compte temporairement verrouillé suite à plusieurs tentatives de connexion échouées. Veuillez réessayer plus tard ou réinitialiser votre mot de passe.' 
       };
     }
 
-    // Vérifier le mot de passe
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      // Incrémenter les tentatives de connexion
-      if (user.incrementLoginAttempts) {
-        await user.incrementLoginAttempts();
-      }
+      await user.incrementLoginAttempts();
       
-      // Obtenir le nombre de tentatives restantes
-      const attemptsRemaining = user.attemptsRemaining ? user.attemptsRemaining() : null;
-      const attemptsMessage = attemptsRemaining !== null ? 
+      // Calcul des tentatives restantes
+      const maxAttempts = 5;
+      const attemptsRemaining = Math.max(0, maxAttempts - user.loginAttempts);
+      const attemptsMessage = attemptsRemaining > 0 ? 
         ` (${attemptsRemaining} tentative${attemptsRemaining > 1 ? 's' : ''} restante${attemptsRemaining > 1 ? 's' : ''})` : '';
       
-      // Délai pour limiter le brute-force
       await new Promise((r) => setTimeout(r, 1000));
       
       return { 
@@ -99,21 +88,15 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
       };
     }
 
-    // Réinitialiser les tentatives de connexion
-    if (user.resetLoginAttempts) {
-      await user.resetLoginAttempts();
-    }
+    await user.resetLoginAttempts();
 
-    // Check if this is the first login (for onboarding purposes)
     const isFirstLogin = !user.lastLogin;
     console.log(`[${timestamp}] User login status - isFirstLogin: ${isFirstLogin}, previous lastLogin: ${user.lastLogin || 'none'}`);
     
-    // Mettre à jour la date de dernière connexion
     const previousLogin = user.lastLogin;
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate tokens
     const accessToken = jwtUtils.generateAccessToken({
       userId: user._id!.toString(),
       name: user.name,
@@ -124,29 +107,25 @@ export async function loginAction(formData: FormData): Promise<AuthResult> {
 
     const refreshToken = jwtUtils.generateRefreshTokenFromUser(user);
 
-    // Set auth cookies
     await jwtUtils.setAuthCookies(accessToken, refreshToken);
 
-    // Log onboarding status
     console.log(`[${timestamp}] Login successful, tokens generated`);
     console.log(`[${timestamp}] User onboarding status - isNewUser: ${user.isNewUser || false}, hasCompletedOnboarding: ${user.hasCompletedOnboarding || false}, isFirstLogin: ${isFirstLogin}`);
 
-    // Return user data and tokens WITH ONBOARDING PROPERTIES
     return {
       success: true,
       message: 'Connexion réussie.',
       user: {
-        _id: user._id.toString(),
+        _id: user._id?.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
         isVerified: user.isVerified,
-        // Include these important properties for onboarding
         isNewUser: user.isNewUser || isFirstLogin || false,
         hasCompletedOnboarding: user.hasCompletedOnboarding || false,
         isFirstLogin: isFirstLogin,
         lastLogin: user.lastLogin,
-        previousLogin: previousLogin, // Include previous login time
+        previousLogin: previousLogin,
         createdAt: user.createdAt,
         preferences: user.preferences || {
           favoriteLeagues: [],
@@ -189,31 +168,28 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    // Validation simple
     if (!name || !email || !password) {
       return { success: false, message: 'Tous les champs sont obligatoires' };
     }
 
     await connectToDatabase();
 
-    // Vérifier si l'utilisateur existe déjà
-    const existingUser = await User.findOne({ email });
+    // Assertion de type pour éviter les erreurs TypeScript
+    const existingUser = await User.findOne({ email }) as UserDocument | null;
     if (existingUser) {
       console.log(`[${timestamp}] Registration failed: Email already in use: ${email}`);
       return { success: false, message: 'Cet email est déjà utilisé' };
     }
 
-    // Créer un nouvel utilisateur
     const now = new Date();
     const user = new User({
       name,
       email,
       password,
       role: 'user',
-      isVerified: false, // Important: User is NOT verified initially
+      isVerified: false,
       isActive: true,
       favoriteTeams: [],
-      // Explicitly set onboarding flags for clarity
       isNewUser: true,
       hasCompletedOnboarding: false,
       preferences: {
@@ -232,15 +208,13 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
       createdAt: now,
       updatedAt: now,
       loginAttempts: 0
-    });
+    }) as UserDocument;
 
-    // Générer le token de vérification
     const verificationToken = user.generateVerificationToken();
 
     await user.save();
     console.log(`[${timestamp}] Successfully registered new user: ${email}`);
 
-    // Envoyer l'email de vérification
     const emailSent = await sendVerificationEmail(
       user.email,
       user.name,
@@ -249,8 +223,6 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
 
     console.log(`[${timestamp}] Verification email sent: ${emailSent ? 'success' : 'failed'}`);
 
-    // IMPORTANT: Return the user without setting authentication
-    // The user should NOT be considered authenticated until they verify their email
     return {
       success: true,
       requiresEmailVerification: true,
@@ -258,11 +230,11 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
         ? 'Inscription réussie. Veuillez vérifier votre boîte email.'
         : 'Inscription réussie. Email de vérification non envoyé.',
       user: {
-        _id: user._id.toString(),
+        _id: user._id?.toString(),
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: false, // Explicitly mark as not verified
+        isVerified: false,
       }
     };
   } catch (error) {
@@ -299,7 +271,6 @@ export async function requireAuth(requiredRole?: string): Promise<IUser> {
       redirect('/login?message=Veuillez vous connecter pour continuer');
     }
     
-    // Si un rôle spécifique est requis, le vérifier
     if (requiredRole && user.role !== requiredRole) {
       redirect('/dashboard?message=Vous n\'avez pas les autorisations nécessaires');
     }
